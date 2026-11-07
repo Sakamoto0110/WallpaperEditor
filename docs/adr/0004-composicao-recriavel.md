@@ -33,7 +33,8 @@ Existem duas coisas, com regras opostas:
 partir desse estado.
 
 Cada revisão é um **JSON com o estado completo** do documento, mais a descrição da mudança. Os
-arquivos-fonte ficam guardados por hash e são imutáveis. O histórico é linear e só cresce: reverter
+arquivos-fonte são copiados para o projeto ao serem escolhidos, ficam guardados por hash e são imutáveis. Um
+`composition.json` na raiz resume as camadas atuais para quem abre a pasta, sem ser lido pelo app. O histórico é linear e só cresce: reverter
 cria uma revisão nova.
 
 ## Por quê

@@ -98,7 +98,7 @@ public sealed partial class EditorViewModel : ObservableObject, IDisposable
         _renderer = renderer;
         _dialogs = dialogs;
         _back = back;
-        _editor = new ProjectEditor(project, ChecklistPainter.RequiredHeight);
+        _editor = new ProjectEditor(project, StyledItemPainter.RequiredHeight);
         _publishRunner = new CoalescingRunner(PublishLatestAsync);
         Images = new DocumentImages(project.ResolveAsset);
 
@@ -177,6 +177,8 @@ public sealed partial class EditorViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsImageSelected))]
     [NotifyPropertyChangedFor(nameof(IsChecklistSelected))]
+    [NotifyPropertyChangedFor(nameof(IsTextSelected))]
+    [NotifyPropertyChangedFor(nameof(IsStyledSelected))]
     [NotifyPropertyChangedFor(nameof(HasSelection))]
     [NotifyCanExecuteChangedFor(nameof(RemoveSelectedCommand))]
     [NotifyCanExecuteChangedFor(nameof(BringForwardCommand))]
@@ -190,6 +192,14 @@ public sealed partial class EditorViewModel : ObservableObject, IDisposable
     public bool IsImageSelected => SelectedItem is ImageItem;
 
     public bool IsChecklistSelected => SelectedItem is ChecklistItem;
+
+    public bool IsTextSelected => SelectedItem is TextItem;
+
+    public bool IsStyledSelected => SelectedItem is StyledItem;
+
+    /// <summary>The content of a text item. Commits when the box loses focus.</summary>
+    [ObservableProperty]
+    public partial string ItemText { get; set; } = string.Empty;
 
     [ObservableProperty]
     public partial double ItemX { get; set; }
@@ -219,7 +229,23 @@ public sealed partial class EditorViewModel : ObservableObject, IDisposable
     public partial string ChecklistTitle { get; set; } = string.Empty;
 
     [ObservableProperty]
-    public partial double ChecklistFontSize { get; set; }
+    public partial double ItemFontSize { get; set; }
+
+    /// <summary>Installed fonts, filled the first time a text item is selected, so opening the app does not pay for it.</summary>
+    public ObservableCollection<string> FontOptions { get; } = [];
+
+    [ObservableProperty]
+    public partial string? ItemFont { get; set; }
+
+    /// <summary>Says so when a project came from a machine that has a font this one lacks.</summary>
+    [ObservableProperty]
+    public partial string? FontNote { get; set; }
+
+    [ObservableProperty]
+    public partial double ItemTextOpacity { get; set; } = 100;
+
+    [ObservableProperty]
+    public partial double ItemPanelOpacity { get; set; } = 100;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(AddEntryCommand))]
@@ -305,6 +331,7 @@ public sealed partial class EditorViewModel : ObservableObject, IDisposable
                 {
                     ImageItem image => image.Source.OriginalName,
                     ChecklistItem list => list.Title.Length > 0 ? list.Title : "Checklist",
+                    TextItem text => text.Label(),
                     _ => "Item",
                 }));
             }
@@ -353,12 +380,54 @@ public sealed partial class EditorViewModel : ObservableObject, IDisposable
         }
     }
 
-    partial void OnChecklistFontSizeChanged(double value)
+    partial void OnItemFontSizeChanged(double value)
     {
-        if (!_syncing && SelectedItem is ChecklistItem list)
+        if (!_syncing && SelectedItem is StyledItem item)
         {
-            Edit(() => _editor.SetChecklistFontSize(list.Id, value));
+            Edit(() => _editor.SetItemFontSize(item.Id, value));
         }
+    }
+
+    partial void OnItemFontChanged(string? value)
+    {
+        if (!_syncing && SelectedItem is StyledItem item && !string.IsNullOrWhiteSpace(value))
+        {
+            Edit(() => _editor.SetItemFont(item.Id, value));
+        }
+    }
+
+    partial void OnItemTextOpacityChanged(double value)
+    {
+        if (!_syncing && SelectedItem is StyledItem item)
+        {
+            Edit(() => _editor.SetItemTextOpacity(item.Id, value / 100));
+        }
+    }
+
+    partial void OnItemPanelOpacityChanged(double value)
+    {
+        if (!_syncing && SelectedItem is StyledItem item)
+        {
+            Edit(() => _editor.SetItemPanelOpacity(item.Id, value / 100));
+        }
+    }
+
+    partial void OnItemTextChanged(string value)
+    {
+        if (_syncing || SelectedItem is not TextItem item)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            // Text nobody can see or select is a trap. Removing the layer is what "Remover" is for.
+            Status = "O texto não pode ficar vazio. Para tirar esta camada, use Remover.";
+            SyncInspector();
+            return;
+        }
+
+        Edit(() => _editor.SetText(item.Id, value));
     }
 
     partial void OnSelectedHistoryChanged(HistoryRow? value) => _ = LoadHistoryThumbnailAsync(value);
@@ -398,6 +467,20 @@ public sealed partial class EditorViewModel : ObservableObject, IDisposable
         Edit(() =>
         {
             var item = _editor.AddChecklist("Tarefas", rect);
+            Select(item.Id);
+        });
+    }
+
+    [RelayCommand]
+    private void AddText()
+    {
+        var width = Math.Min(600, Canvas.Width * 0.8);
+        var height = Math.Min(120, Canvas.Height * 0.8);
+        var rect = new ItemRect((Canvas.Width - width) / 2, (Canvas.Height - height) / 2, width, height);
+
+        Edit(() =>
+        {
+            var item = _editor.AddText("Escreva aqui", rect);
             Select(item.Id);
         });
     }
@@ -616,6 +699,14 @@ public sealed partial class EditorViewModel : ObservableObject, IDisposable
             ItemHeight = item.Rect.Height;
             ItemRotation = item.Rotation;
 
+            if (item is StyledItem styled)
+            {
+                ItemFontSize = styled.Style.Size;
+                ItemTextOpacity = Math.Round(styled.Style.TextOpacity * 100);
+                ItemPanelOpacity = Math.Round(styled.Style.PanelOpacity * 100);
+                SyncFont(styled.Style.Font);
+            }
+
             switch (item)
             {
                 case ImageItem image:
@@ -625,8 +716,11 @@ public sealed partial class EditorViewModel : ObservableObject, IDisposable
 
                 case ChecklistItem list:
                     ChecklistTitle = list.Title;
-                    ChecklistFontSize = list.Style.Size;
                     SyncEntries(list);
+                    break;
+
+                case TextItem text:
+                    ItemText = text.Text;
                     break;
             }
         }
@@ -634,6 +728,27 @@ public sealed partial class EditorViewModel : ObservableObject, IDisposable
         {
             _syncing = false;
         }
+    }
+
+    private void SyncFont(string font)
+    {
+        if (FontOptions.Count == 0)
+        {
+            foreach (var name in Fonts.SystemFontFamilies.Select(f => f.Source).Order(StringComparer.CurrentCultureIgnoreCase))
+            {
+                FontOptions.Add(name);
+            }
+        }
+
+        var installed = FontOptions.Contains(font);
+        if (!installed)
+        {
+            // Kept in the list so the selection shows what the project really asks for.
+            FontOptions.Insert(0, font);
+        }
+
+        ItemFont = font;
+        FontNote = installed ? null : $"A fonte {font} não está instalada aqui, e o texto usa uma alternativa.";
     }
 
     /// <summary>Keeps existing rows when the same entries are still there, as after marking one.</summary>

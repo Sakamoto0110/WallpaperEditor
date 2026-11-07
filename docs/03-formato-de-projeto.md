@@ -21,6 +21,7 @@ projeto é a fonte da verdade; o PNG é só um resultado descartável.
 ```text
 Minha mesa/
 ├─ project.json
+├─ composition.json        as camadas atuais, em ordem; só para consulta
 ├─ assets/
 │  ├─ 3fa9c1…e2.jpg        fundo
 │  ├─ 81b07d…4c.png        imagem adicionada
@@ -55,6 +56,15 @@ O único arquivo mutável.
 | `formatVersion` | Versão deste formato. Uma versão desconhecida é recusada, nunca lida por tentativa |
 | `canvas` | Tamanho do documento. Normalmente vem do monitor escolhido na criação, mas não se liga a ele |
 | `head` | Número da revisão atual |
+
+## `composition.json`
+
+Um resumo legível das camadas atuais, para quem abre a pasta: o fundo e cada camada, numeradas de baixo para cima,
+com o arquivo em `assets/` e o nome original. Serve para saber qual arquivo é qual, já que os assets são nomeados
+pelo conteúdo.
+
+**O app nunca lê este arquivo.** Ele é gerado a cada alteração e ao abrir o projeto, e editá-lo ou apagá-lo não muda
+nada. Assim, não existem duas fontes da verdade.
 
 ## `assets/`
 
@@ -126,14 +136,20 @@ Os itens são desenhados **na ordem da lista**: o último fica por cima.
 |---|---|---|
 | `image` | Cheatsheets e qualquer imagem adicionada à composição | `source`, `opacity` |
 | `checklist` | Listas de tarefas | `title`, `entries`, `style` |
+| `text` | Texto livre, com várias linhas | `text`, `style` |
 
 Todos têm `id`, `rect` (em pixels do canvas) e `rotation` (em graus). Conteúdo maior que `rect` é recortado.
 
 Reduzir um cheatsheet pode torná-lo ilegível, e por isso o editor oferece o tamanho real (100%) e avisa ao
 reduzir. Um `rect` do mesmo tamanho do arquivo mantém a imagem pixel a pixel.
 
-As fontes da checklist são referenciadas pelo nome e vêm do sistema; se faltar uma, o app avisa e usa uma
-alternativa.
+Em `text`, as quebras de linha são sempre `\n`, e o texto não pode ficar vazio: para tirá-lo, remove-se a camada.
+Checklist e texto crescem sozinhos, na mesma revisão, quando o conteúdo deixa de caber, mas nunca encolhem sozinhos.
+
+As fontes de `style` são referenciadas pelo nome e vêm do sistema; se faltar uma, o app avisa e usa uma alternativa.
+
+As cores são `#RRGGBB` ou `#AARRGGBB`. A opacidade do texto e a do painel são o alfa de `color` e de `panel`, sem
+campos separados, para que a transparência tenha uma única fonte.
 
 ### `change`
 
@@ -166,8 +182,8 @@ Mesmo depois de reverter para a revisão 2, as revisões 3 e 4 continuam existin
 formas de recuperar algo:
 
 - **Reverter:** o documento inteiro volta àquele estado.
-- **Restaurar item:** só um item daquela revisão volta para o documento atual, sem afetar o resto. Um item que não
-  existia mais volta por cima dos outros, e sua ordem original não é recuperada.
+- **Restaurar item:** só um item daquela revisão volta para o documento atual, sem afetar o resto. Ele retorna ao seu
+  lugar na pilha: logo acima do item mais próximo que estava abaixo dele naquela revisão e ainda existe.
 
 Nem alterar nem publicar reescrevem revisões anteriores.
 

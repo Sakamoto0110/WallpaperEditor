@@ -212,6 +212,6 @@ pequena alteração.
 | Camada | Abordagem |
 |---|---|
 | Core | xUnit, com dublês do Windows e do renderizador: monitores, ajuste, publicação, estado, projeto, histórico, recuperação de escrita interrompida, geometria de itens girados |
-| Rendering | xUnit, com imagens geradas no teste: dimensões exatas, os 4 ajustes, EXIF, pixel a pixel, ordem e rotação de itens, recorte de checklists, erros |
+| Rendering | xUnit, com imagens geradas no teste: dimensões exatas, os 4 ajustes, EXIF, pixel a pixel, ordem e rotação de itens, recorte de checklists e texto, fontes, opacidade, erros |
 | Platform.Windows | Sem teste automatizado; os testes alteram o desktop real. Roteiro manual em [06 — Roadmap](06-roadmap.md) |
 | App | Sem testes automatizados: a lógica fica no Core, e a tela é conferida à mão ou por UI Automation. Permite `--data` e `--project`, para testar sem tocar no estado real |

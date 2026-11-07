@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using WallpaperEditor.Core.Wallpapers;
@@ -23,6 +25,7 @@ public readonly record struct ItemRect(double X, double Y, double Width, double 
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
 [JsonDerivedType(typeof(ImageItem), "image")]
 [JsonDerivedType(typeof(ChecklistItem), "checklist")]
+[JsonDerivedType(typeof(TextItem), "text")]
 public abstract record DocumentItem
 {
     public required string Id { get; init; }
@@ -42,20 +45,97 @@ public sealed record ImageItem : DocumentItem
     public double Opacity { get; init; } = 1;
 }
 
-public sealed record ChecklistItem : DocumentItem
+/// <summary>An item made of text on a panel, which shares its look with every other such item.</summary>
+public abstract record StyledItem : DocumentItem
+{
+    public TextStyle Style { get; init; } = TextStyle.Default;
+}
+
+public sealed record ChecklistItem : StyledItem
 {
     public string Title { get; init; } = string.Empty;
 
     public IReadOnlyList<ChecklistEntry> Entries { get; init; } = [];
+}
 
-    public ChecklistStyle Style { get; init; } = ChecklistStyle.Default;
+/// <summary>Free text. Line breaks are always stored as <c>\n</c>, so a project reads the same anywhere.</summary>
+public sealed record TextItem : StyledItem
+{
+    private const int LabelLength = 30;
+
+    public required string Text { get; init; }
+
+    public static string Normalize(string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        return text.ReplaceLineEndings("\n");
+    }
+
+    /// <summary>The start of the text, short enough to name this item in a list or in the history.</summary>
+    public string Label()
+    {
+        var firstLine = Text.TrimStart().Split('\n', 2)[0].TrimEnd();
+        return firstLine.Length <= LabelLength ? firstLine : $"{firstLine[..LabelLength]}…";
+    }
 }
 
 public sealed record ChecklistEntry(string Id, string Text, bool Done);
 
-public sealed record ChecklistStyle(string Font, double Size, string Color, string Panel)
+/// <summary>
+/// How text on a panel looks. Colors are <c>#RRGGBB</c> or <c>#AARRGGBB</c>, and the alpha is what the opacity
+/// controls change, so there is one source of truth for transparency.
+/// </summary>
+public sealed record TextStyle(string Font, double Size, string Color, string Panel)
 {
-    public static readonly ChecklistStyle Default = new("Segoe UI", 22, "#FFFFFF", "#BE101218");
+    public static readonly TextStyle Default = new("Segoe UI", 22, "#FFFFFF", "#BE101218");
+
+    [JsonIgnore]
+    public double TextOpacity => ColorAlpha.Of(Color);
+
+    [JsonIgnore]
+    public double PanelOpacity => ColorAlpha.Of(Panel);
+
+    public TextStyle WithTextOpacity(double opacity) => this with { Color = ColorAlpha.With(Color, opacity) };
+
+    public TextStyle WithPanelOpacity(double opacity) => this with { Panel = ColorAlpha.With(Panel, opacity) };
+}
+
+/// <summary>Reads and changes the alpha of a color written as <c>#RRGGBB</c> or <c>#AARRGGBB</c>.</summary>
+public static class ColorAlpha
+{
+    /// <summary>The alpha from 0 to 1. Anything else, such as a named color, counts as opaque.</summary>
+    public static double Of(string color)
+    {
+        ArgumentNullException.ThrowIfNull(color);
+
+        return color is ['#', _, _, _, _, _, _, _, _]
+            && byte.TryParse(color.AsSpan(1, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var alpha)
+                ? alpha / 255.0
+                : 1;
+    }
+
+    /// <summary>The same color with another alpha. A color it cannot read is returned as it was.</summary>
+    public static string With(string color, double opacity)
+    {
+        ArgumentNullException.ThrowIfNull(color);
+
+        var rgb = color switch
+        {
+            ['#', _, _, _, _, _, _] => color[1..],
+            ['#', _, _, _, _, _, _, _, _] => color[3..],
+            _ => null,
+        };
+
+        if (rgb is null)
+        {
+            return color;
+        }
+
+        var alpha = (byte)Math.Round(Math.Clamp(opacity, 0, 1) * 255);
+
+        // #FFFFFF and #FFFFFFFF are the same color: rewriting it would record a change that changes nothing.
+        return alpha == (byte)Math.Round(Of(color) * 255) ? color : $"#{alpha:X2}{rgb}";
+    }
 }
 
 /// <summary>What changed in a revision, for people reading the history.</summary>
@@ -99,6 +179,10 @@ internal static class ProjectJson
     public static readonly JsonSerializerOptions Options = new()
     {
         WriteIndented = true,
+
+        // These files are meant to be readable: "Demonstração", not "Demonstração". The stricter default
+        // guards against JSON embedded in HTML, which does not apply to a local file.
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         AllowOutOfOrderMetadataProperties = true,

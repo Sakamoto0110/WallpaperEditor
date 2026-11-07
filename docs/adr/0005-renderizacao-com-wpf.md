@@ -47,7 +47,7 @@ tempo de codificação tende a crescer junto. Texto em 15 px ficou nítido na in
 
 | Opção | Por que não |
 |---|---|
-| SkiaSharp | Dependência nativa adicional, e texto com quebra de linha precisaria ser implementado por nós. Só compensaria com perspectiva ou efeitos, o que não é pedido |
+| SkiaSharp | Dependência nativa adicional, e texto com quebra de linha precisaria ser implementado por nós. Só compensaria com perspectiva ou efeitos, o que não é pedido. Reavaliado ao discutir uma biblioteca para "injetar" imagens: desenhar uma imagem dentro da outra é exatamente o que o WPF já faz aqui |
 | ImageSharp | Licença com restrições comerciais, e sem vantagem aqui |
 | Direct2D + DirectWrite | Mais rápido, mas muito mais código por um ganho irrelevante: publicar é uma ação pontual, e 0,5 s já basta |
 

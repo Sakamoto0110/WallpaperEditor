@@ -265,7 +265,7 @@ internal static class Program
     {
         var canvas = Portrait().Bounds.Size;
         using var project = ProjectFolder.Create(folder, "Demonstração", canvas, background, FitMode.Fill);
-        var editor = new ProjectEditor(project, ChecklistPainter.RequiredHeight);
+        var editor = new ProjectEditor(project, StyledItemPainter.RequiredHeight);
 
         var picture = editor.AddImage(image, new ItemRect(140, 1150, 800, 600));
         editor.Place(picture.Id, picture.Rect, 355);

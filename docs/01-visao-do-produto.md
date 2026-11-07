@@ -72,6 +72,9 @@ lista de itens:
 |---|---|
 | **Imagem** | Um cheatsheet de uma linguagem, ou qualquer imagem escolhida por você, com posição, tamanho, rotação e opacidade. Com opção de tamanho real, para um cheatsheet continuar legível |
 | **Checklist** | Lista de tarefas: adicionar, remover e marcar entradas, por um checkbox no app |
+| **Texto** | Texto livre, com várias linhas: anotações, atalhos, lembretes |
+
+Checklist e texto compartilham a escolha de fonte, o tamanho e a opacidade do texto e do painel.
 
 O ciclo de uso, por exemplo ao marcar uma tarefa:
 
@@ -106,7 +109,7 @@ sem ele. Ver [05 — Experimento do modo animado](05-experimento-animado.md).
 | Atualização automática (horário, slideshow, arquivos observados, dados da internet) | Só o app altera o wallpaper |
 | Ferramentas de pintura e filtros | O app compõe itens; não é um editor de imagens |
 | Perspectiva e máscaras | Nenhum exemplo de uso precisa disso. Pode ser reavaliado |
-| Item de texto e realce de sintaxe | As referências serão imagens. Pode ser reavaliado depois |
+| Realce de sintaxe e texto formatado | As referências de linguagem serão imagens. Pode ser reavaliado depois |
 | Imagens sorteadas pelo app | As imagens são sempre escolhidas pelo usuário; sortear sem animação ficaria estranho |
 | Interagir clicando no próprio wallpaper | Exigiria um processo residente ([custo estimado](04-integracao-windows.md#clicar-no-próprio-wallpaper)). Pode ser reavaliado |
 | Formatos de vídeo além de `.mp4`; áudio no vídeo | O modo animado é um experimento |
@@ -123,7 +126,7 @@ Os documentos e o código usam estes termos com significado exato:
 | **Monitor** | Um monitor físico ativo. Identificado pelo *device path* do Windows, não pelo índice |
 | **Canvas** | O tamanho em pixels do documento de um projeto dinâmico |
 | **Documento** | O fundo mais a lista de itens: o estado completo de um wallpaper dinâmico |
-| **Item** | Um elemento do documento: imagem ou checklist |
+| **Item** | Um elemento do documento: imagem, checklist ou texto. Na tela, é chamado de **camada** |
 | **Asset** | Um arquivo-fonte importado para o projeto. Imutável |
 | **Revisão** | Um estado completo e imutável do documento, com a descrição da mudança |
 | **Head** | A revisão atual do projeto |
@@ -144,8 +147,8 @@ Cada uma tem uma resposta assumida, com a qual os documentos foram escritos.
 ### Resolvidas
 
 - **Imagens aleatórias:** são escolhidas pelo usuário. Sorteadas exigiriam animação para não ficarem estranhas.
-- **Referências de linguagem:** arquivos do usuário, provavelmente imagens tipo cheatsheet. Por isso o item de
-  texto saiu da primeira versão.
+- **Referências de linguagem:** arquivos do usuário, provavelmente imagens tipo cheatsheet. Por isso não há leitura de
+  arquivos de texto nem realce de sintaxe. A camada de texto livre existe para anotações digitadas no app.
 - **Clicar no próprio wallpaper:** a checklist é operada pelo app, enquanto o custo de um processo residente
   não compensar ([análise](04-integracao-windows.md#clicar-no-próprio-wallpaper)).
 - **O que significa "colocar uma imagem dentro da outra"?** Na saída, é tudo um PNG plano e irreversível, sem

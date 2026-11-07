@@ -6,7 +6,7 @@ afetar os outros.
 **Extremamente leve, e não um Wallpaper Engine:** o Windows recebe uma imagem estática comum, e com
 o app fechado nada fica rodando. O wallpaper só muda pelo app.
 
-> **Status: Fase 4 em conferência.** Static e Dynamic funcionam: o editor compõe imagens e checklists, com histórico
+> **Status: Fase 4 em conferência.** Static e Dynamic funcionam: o editor compõe imagens, checklists e texto, com histórico
 > para reverter, e publica em um monitor. Animated ainda não existe. O estado de cada fase, e o que falta testar, está
 > em [docs/06-roadmap.md](docs/06-roadmap.md).
 
@@ -29,7 +29,7 @@ dotnet run --project src/WallpaperEditor.App
 | Tipo | O que é | Precisa de processo rodando? |
 |---|---|---|
 | **Static** | Uma imagem, ajustada ao monitor escolhido | Não |
-| **Dynamic** | Uma composição de imagens (cheatsheets de uma linguagem, por exemplo) e checklists, com pasta de projeto, arquivos-fonte e histórico. A saída é um PNG plano e irreversível; o **registro de alterações** é o que permite reverter e recompor | Não |
+| **Dynamic** | Uma composição de camadas (imagens como cheatsheets de uma linguagem, checklists e texto), com pasta de projeto, arquivos-fonte e histórico. A saída é um PNG plano e irreversível; o **registro de alterações** é o que permite reverter e recompor | Não |
 | **Animated** | Um vídeo `.mp4` em loop. **Experimental:** existe para descobrir quanta VRAM isso consome | Sim |
 
 ## Documentação

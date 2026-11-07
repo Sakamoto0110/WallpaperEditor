@@ -75,8 +75,8 @@ public static class DocumentPainter
             case ImageItem image:
                 DrawImageItem(context, image, width, height, images, showMissing, preferCached);
                 break;
-            case ChecklistItem checklist:
-                ChecklistPainter.Draw(context, checklist, width, height);
+            case StyledItem styled:
+                StyledItemPainter.Draw(context, styled, width, height);
                 break;
         }
 
@@ -121,17 +121,17 @@ public static class DocumentPainter
     }
 }
 
-/// <summary>Draws checklists, and knows how tall they need to be.</summary>
-public static class ChecklistPainter
+/// <summary>Draws text on a panel, and knows how tall it needs to be.</summary>
+public static class StyledItemPainter
 {
-    /// <summary>The height needed to show the whole list at the item's current width.</summary>
-    public static double RequiredHeight(ChecklistItem item)
+    /// <summary>The height needed to show all of the content at the item's current width.</summary>
+    public static double RequiredHeight(StyledItem item)
     {
         ArgumentNullException.ThrowIfNull(item);
         return Layout(item, item.Rect.Width, context: null);
     }
 
-    public static void Draw(DrawingContext context, ChecklistItem item, double width, double height)
+    public static void Draw(DrawingContext context, StyledItem item, double width, double height)
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(item);
@@ -142,7 +142,22 @@ public static class ChecklistPainter
     }
 
     /// <summary>One routine both measures and draws, so the two can never disagree.</summary>
-    private static double Layout(ChecklistItem item, double width, DrawingContext? context)
+    private static double Layout(StyledItem item, double width, DrawingContext? context) => item switch
+    {
+        ChecklistItem checklist => LayoutChecklist(checklist, width, context),
+        TextItem text => LayoutText(text, width, context),
+        _ => 0,
+    };
+
+    private static double LayoutText(TextItem item, double width, DrawingContext? context)
+    {
+        var padding = item.Style.Size * 0.9;
+        var text = Text(item.Text, item.Style.Font, item.Style.Size, FontWeights.Normal, ParseBrush(item.Style.Color, "#FFFFFF"), width - (padding * 2));
+        context?.DrawText(text, new Point(padding, padding));
+        return padding + text.Height + padding;
+    }
+
+    private static double LayoutChecklist(ChecklistItem item, double width, DrawingContext? context)
     {
         var size = item.Style.Size;
         var padding = size * 0.9;
@@ -177,7 +192,7 @@ public static class ChecklistPainter
             {
                 // Aligned with the first line of the text, which may wrap onto more.
                 var firstLineHeight = size * 1.33;
-                DrawCheckbox(context, new Rect(padding, y + ((firstLineHeight - box) / 2), box, box), entry.Done, textBrush, dimBrush);
+                DrawCheckbox(context, new Rect(padding, y + ((firstLineHeight - box) / 2), box, box), entry.Done, textBrush, dimBrush, item.Style.TextOpacity);
                 context.DrawText(text, new Point(textLeft, y));
             }
 
@@ -191,7 +206,7 @@ public static class ChecklistPainter
     /// Geometry rather than the ☐ and ☑ characters: those come from a fallback font and were measured coming out
     /// at different sizes from each other.
     /// </summary>
-    private static void DrawCheckbox(DrawingContext context, Rect box, bool done, Brush color, Brush dim)
+    private static void DrawCheckbox(DrawingContext context, Rect box, bool done, Brush color, Brush dim, double opacity)
     {
         var thickness = Math.Max(1.5, box.Width * 0.09);
         var radius = box.Width * 0.18;
@@ -213,7 +228,11 @@ public static class ChecklistPainter
         }
 
         mark.Freeze();
-        context.DrawGeometry(null, new Pen(Brushes.Black, thickness * 1.3) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round }, mark);
+
+        // Follows the text's opacity, or a check mark would linger on after the text has faded out.
+        var markBrush = new SolidColorBrush(Color.FromArgb((byte)Math.Round(opacity * 255), 0, 0, 0));
+        markBrush.Freeze();
+        context.DrawGeometry(null, new Pen(markBrush, thickness * 1.3) { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round, LineJoin = PenLineJoin.Round }, mark);
     }
 
     private static FormattedText Text(string text, string font, double size, FontWeight weight, Brush brush, double maxWidth) =>

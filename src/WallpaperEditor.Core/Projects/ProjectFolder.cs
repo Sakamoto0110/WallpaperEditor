@@ -22,6 +22,7 @@ public sealed class ProjectFolder : IDisposable
     public const int CurrentFormatVersion = 1;
 
     private const string ProjectFile = "project.json";
+    private const string CompositionFile = "composition.json";
     private const string LockFile = ".lock";
     private const string AssetsFolder = "assets";
     private const string RevisionsFolder = "revisions";
@@ -201,6 +202,7 @@ public sealed class ProjectFolder : IDisposable
         File.Move(temporary, RevisionPath(number));
 
         SaveInfo(_info with { Head = number });
+        WriteCompositionView(revision);
         return revision;
     }
 
@@ -226,6 +228,41 @@ public sealed class ProjectFolder : IDisposable
         }
     }
 
+    /// <summary>
+    /// Writes the current layers in order, for a person looking at the folder: which file is which, and how they
+    /// stack. Purely informative: nothing ever reads it back, so a failure here must not fail the change itself.
+    /// </summary>
+    private void WriteCompositionView(Revision revision)
+    {
+        if (IsReadOnly)
+        {
+            return;
+        }
+
+        var view = new CompositionView(
+            "Gerado pelo WallpaperEditor, apenas para consulta. Editar este arquivo não muda nada: a fonte da verdade é a pasta revisions.",
+            Name,
+            revision.Number,
+            _info.Canvas,
+            new BackgroundLayer(
+                $"{AssetsFolder}/{revision.Document.Background.Source.Asset}",
+                revision.Document.Background.Source.OriginalName,
+                revision.Document.Background.Fit),
+            revision.Document.Items.Select((item, index) => new CompositionLayer(index + 1, item)).ToList());
+
+        try
+        {
+            var file = Path.Combine(FolderPath, CompositionFile);
+            var temporary = $"{file}.tmp";
+            File.WriteAllText(temporary, JsonSerializer.Serialize(view, ProjectJson.Options));
+            File.Move(temporary, file, overwrite: true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Only a convenience: the revision itself is already safely written.
+        }
+    }
+
     private void Recover()
     {
         if (!IsReadOnly)
@@ -241,6 +278,8 @@ public sealed class ProjectFolder : IDisposable
 
         if (newest == _info.Head)
         {
+            // Also covers projects created before this file existed.
+            WriteCompositionView(ReadRevision(newest));
             return;
         }
 
@@ -257,6 +296,7 @@ public sealed class ProjectFolder : IDisposable
         else
         {
             SaveInfo(_info with { Head = newest });
+            WriteCompositionView(ReadRevision(newest));
         }
     }
 
@@ -310,6 +350,13 @@ public sealed class ProjectFolder : IDisposable
     }
 
     private sealed record CanvasInfo(int Width, int Height);
+
+    private sealed record BackgroundLayer(string File, string OriginalName, FitMode Fit);
+
+    /// <summary>Numbered from the bottom: the highest order is drawn on top.</summary>
+    private sealed record CompositionLayer(int Order, DocumentItem Item);
+
+    private sealed record CompositionView(string Note, string Name, int Revision, CanvasInfo Canvas, BackgroundLayer Background, IReadOnlyList<CompositionLayer> Layers);
 
     private sealed record ProjectInfo(int FormatVersion, Guid Id, string Name, CanvasInfo Canvas, int Head, DateTimeOffset CreatedAt);
 }

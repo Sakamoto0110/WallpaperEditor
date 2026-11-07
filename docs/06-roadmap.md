@@ -68,9 +68,9 @@ Windows real.
 ## Fase 4 — Dynamic (implementada, em conferência)
 
 **Falta o usuário testar:** arrastar, redimensionar e girar itens com o mouse, e criar um projeto novo com os
-diálogos de arquivo. O resto foi exercitado de verdade: por 134 testes automatizados e, na tela, por UI Automation
-(selecionar itens, publicar, marcar tarefas, remover, restaurar um item e reverter). Esses passos não usaram o mouse
-nem os diálogos de arquivo. A publicação real foi só no monitor vertical. Mudar um projeto para outro formato de
+diálogos de arquivo. O resto foi exercitado de verdade: por 192 testes automatizados e, na tela, por UI Automation
+(selecionar itens, publicar, marcar tarefas, remover, restaurar um item, reverter, trocar a fonte, mudar as
+opacidades e criar e editar texto). Esses passos não usaram o mouse nem os diálogos de arquivo. A publicação real foi só no monitor vertical. Mudar um projeto para outro formato de
 monitor só foi testado no `Rendering`.
 
 Em duas etapas, com o motor primeiro:
@@ -88,6 +88,8 @@ Em duas etapas, com o motor primeiro:
 - Adicionar, mover, redimensionar, girar e reordenar itens
 - Opção de tamanho real (100%) para imagens, com aviso ao reduzir, para cheatsheets continuarem legíveis
 - Editar checklist: adicionar, remover e marcar tarefas
+- Camada de texto livre, com várias linhas
+- Fonte, tamanho e opacidade do texto e do painel, em checklists e textos
 - Painel de histórico, com a descrição de cada mudança e miniaturas
 - Lista de itens, para alcançar um item escondido atrás de outro e usar sem mouse
 - Publicar em um monitor, mostrando quando o head está à frente do que foi publicado; marcar uma tarefa publica
@@ -135,6 +137,6 @@ diagnóstico).
 
 ## Depois
 
-Sem compromisso, para reavaliar se houver uso real: item de texto, descarte manual de revisões e assets
+Sem compromisso, para reavaliar se houver uso real: cor e alinhamento do texto, descarte manual de revisões e assets
 antigos, publicar o mesmo projeto em vários monitores, [clicar no próprio
 wallpaper](04-integracao-windows.md#clicar-no-próprio-wallpaper).

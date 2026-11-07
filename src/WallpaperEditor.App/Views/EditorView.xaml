@@ -63,15 +63,19 @@
                 <ScrollViewer Padding="4,8,12,8" VerticalScrollBarVisibility="Auto">
                 <StackPanel IsEnabled="{Binding IsEditable}">
                     <TextBlock Style="{StaticResource Heading}" Text="Adicionar" />
-                    <UniformGrid Margin="0,6,0,0" Columns="2">
+                    <UniformGrid Margin="0,6,0,0" Columns="3">
                         <Button Margin="0,0,4,0"
                                 HorizontalAlignment="Stretch"
                                 Command="{Binding AddImageCommand}"
                                 Content="Imagem..." />
-                        <Button Margin="4,0,0,0"
+                        <Button Margin="2,0"
                                 HorizontalAlignment="Stretch"
                                 Command="{Binding AddChecklistCommand}"
                                 Content="Checklist" />
+                        <Button Margin="4,0,0,0"
+                                HorizontalAlignment="Stretch"
+                                Command="{Binding AddTextCommand}"
+                                Content="Texto" />
                     </UniformGrid>
 
                     <TextBlock Margin="0,16,0,0"
@@ -98,9 +102,9 @@
 
                     <TextBlock Margin="0,16,0,6"
                                Style="{StaticResource Heading}"
-                               Text="Itens" />
+                               Text="Camadas" />
                     <ListBox MaxHeight="130"
-                             AutomationProperties.Name="Itens"
+                             AutomationProperties.Name="Camadas"
                              DisplayMemberPath="Label"
                              ItemsSource="{Binding Items}"
                              SelectedItem="{Binding SelectedRow}">
@@ -114,7 +118,7 @@
 
                     <!-- Selected item -->
                     <StackPanel Margin="0,16,0,0" Visibility="{Binding HasSelection, Converter={StaticResource BoolToVisibility}}">
-                        <TextBlock Style="{StaticResource Heading}" Text="Item selecionado" />
+                        <TextBlock Style="{StaticResource Heading}" Text="Camada selecionada" />
 
                         <UniformGrid Margin="0,6,0,0" Columns="3">
                             <Button Margin="0,0,4,0"
@@ -186,8 +190,6 @@
                         <StackPanel Visibility="{Binding IsChecklistSelected, Converter={StaticResource BoolToVisibility}}">
                             <TextBlock Style="{StaticResource Caption}" Text="Título" />
                             <TextBox AutomationProperties.Name="Título" Text="{Binding ChecklistTitle}" />
-                            <TextBlock Style="{StaticResource Caption}" Text="Tamanho do texto" />
-                            <TextBox AutomationProperties.Name="Tamanho do texto" Text="{Binding ChecklistFontSize}" />
 
                             <TextBlock Style="{StaticResource Caption}" Text="Tarefas" />
                             <ItemsControl ItemsSource="{Binding Entries}">
@@ -232,6 +234,43 @@
                                         Command="{Binding AddEntryCommand}"
                                         Content="Adicionar" />
                             </Grid>
+                        </StackPanel>
+
+                        <!-- Free text -->
+                        <StackPanel Visibility="{Binding IsTextSelected, Converter={StaticResource BoolToVisibility}}">
+                            <TextBlock Style="{StaticResource Caption}" Text="Texto" />
+                            <TextBox MinHeight="90"
+                                     AcceptsReturn="True"
+                                     AutomationProperties.Name="Conteúdo do texto"
+                                     Text="{Binding ItemText}"
+                                     TextWrapping="Wrap"
+                                     VerticalScrollBarVisibility="Auto" />
+                        </StackPanel>
+
+                        <!-- Look of anything made of text -->
+                        <StackPanel Visibility="{Binding IsStyledSelected, Converter={StaticResource BoolToVisibility}}">
+                            <TextBlock Style="{StaticResource Caption}" Text="Fonte" />
+                            <ComboBox HorizontalAlignment="Stretch"
+                                      AutomationProperties.Name="Fonte"
+                                      ItemsSource="{Binding FontOptions}"
+                                      SelectedItem="{Binding ItemFont}" />
+                            <TextBlock Margin="0,4,0,0"
+                                       FontSize="12"
+                                       Foreground="#D9A441"
+                                       Text="{Binding FontNote}"
+                                       TextWrapping="Wrap" />
+                            <TextBlock Style="{StaticResource Caption}" Text="Tamanho do texto" />
+                            <TextBox AutomationProperties.Name="Tamanho do texto" Text="{Binding ItemFontSize}" />
+                            <TextBlock Style="{StaticResource Caption}" Text="Opacidade do texto" />
+                            <Slider AutomationProperties.Name="Opacidade do texto"
+                                    Maximum="100"
+                                    Minimum="0"
+                                    Value="{Binding ItemTextOpacity, Delay=300}" />
+                            <TextBlock Style="{StaticResource Caption}" Text="Opacidade do painel" />
+                            <Slider AutomationProperties.Name="Opacidade do painel"
+                                    Maximum="100"
+                                    Minimum="0"
+                                    Value="{Binding ItemPanelOpacity, Delay=300}" />
                         </StackPanel>
                     </StackPanel>
                 </StackPanel>

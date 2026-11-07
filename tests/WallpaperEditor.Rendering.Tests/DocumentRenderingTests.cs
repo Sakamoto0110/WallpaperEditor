@@ -114,7 +114,7 @@ public sealed class DocumentRenderingTests : IDisposable
             Rect = new ItemRect(20, 20, 200, 60),
             Title = "Hoje",
             Entries = [new("1", "Uma", false), new("2", "Duas", false), new("3", "Três", false), new("4", "Quatro", false)],
-            Style = ChecklistStyle.Default with { Panel = "#FF00C800" },
+            Style = TextStyle.Default with { Panel = "#FF00C800" },
         };
 
         var output = await Render(Document(list), Canvas);
@@ -141,12 +141,84 @@ public sealed class DocumentRenderingTests : IDisposable
     }
 
     [Fact]
+    public async Task The_font_changes_the_picture()
+    {
+        var plain = Checklist(done: false);
+        var mono = plain with { Style = plain.Style with { Font = "Consolas" } };
+
+        var before = Pixels(await Render(Document(plain), Canvas));
+        var after = Pixels(await Render(Document(mono), Canvas));
+
+        Assert.NotEqual(before, after);
+    }
+
+    [Fact]
+    public async Task A_font_that_is_not_installed_still_draws_the_text()
+    {
+        var list = Checklist(done: false);
+        var missing = list with { Style = list.Style with { Font = "Fonte Que Nao Existe 123", Panel = "#00000000" } };
+
+        var output = await Render(Document(missing), Canvas);
+
+        // White text over the blue background: some pixels of the panel area must have changed.
+        Assert.Contains(Enumerable.Range(10, 280), x => Enumerable.Range(10, 100).Any(y => Pixel(output, x, y).R > 150));
+    }
+
+    [Fact]
+    public async Task A_transparent_panel_shows_the_background_behind_the_text()
+    {
+        var list = Checklist(done: false) with { Rect = new ItemRect(10, 10, 300, 150) };
+        var clear = list with { Style = list.Style.WithPanelOpacity(0) };
+
+        var output = await Render(Document(clear), Canvas);
+
+        // A corner of the item, away from any text, is the background itself.
+        AssertColor(Blue, Pixel(output, 305, 155));
+    }
+
+    [Fact]
+    public async Task An_opaque_panel_hides_the_background()
+    {
+        var list = Checklist(done: false);
+        var solid = list with { Style = list.Style.WithPanelOpacity(1) };
+
+        var output = await Render(Document(solid), Canvas);
+
+        AssertColor(Color.FromRgb(0x10, 0x12, 0x18), Pixel(output, 305, 150));
+    }
+
+    [Fact]
+    public async Task Fully_transparent_text_leaves_only_the_panel()
+    {
+        var list = Checklist(done: true);
+        var noText = list with { Style = list.Style.WithTextOpacity(0) };
+        var noEntries = list with { Title = string.Empty, Entries = [] };
+
+        var without = Pixels(await Render(Document(noText), Canvas));
+        var empty = Pixels(await Render(Document(noEntries), Canvas));
+
+        Assert.Equal(empty, without);
+    }
+
+    [Fact]
+    public async Task Half_transparent_text_is_dimmer_than_opaque_text()
+    {
+        var list = Checklist(done: false) with { Style = TextStyle.Default with { Panel = "#FF000000" } };
+        var half = list with { Style = list.Style.WithTextOpacity(0.5) };
+
+        var bright = (await Render(Document(list), Canvas));
+        var dim = (await Render(Document(half), Canvas));
+
+        Assert.True(Brightest(dim) < Brightest(bright));
+    }
+
+    [Fact]
     public void The_checklist_needs_more_room_as_entries_are_added()
     {
         var one = Checklist(done: false);
         var three = one with { Entries = [.. one.Entries, new("b", "Mais uma", false), new("c", "E outra", false)] };
 
-        Assert.True(ChecklistPainter.RequiredHeight(three) > ChecklistPainter.RequiredHeight(one));
+        Assert.True(StyledItemPainter.RequiredHeight(three) > StyledItemPainter.RequiredHeight(one));
     }
 
     [Fact]
@@ -156,7 +228,7 @@ public sealed class DocumentRenderingTests : IDisposable
         var wide = Checklist(done: false) with { Entries = [entry], Rect = new ItemRect(0, 0, 1000, 100) };
         var narrow = wide with { Rect = new ItemRect(0, 0, 200, 100) };
 
-        Assert.True(ChecklistPainter.RequiredHeight(narrow) > ChecklistPainter.RequiredHeight(wide));
+        Assert.True(StyledItemPainter.RequiredHeight(narrow) > StyledItemPainter.RequiredHeight(wide));
     }
 
     [Fact]
@@ -205,6 +277,15 @@ public sealed class DocumentRenderingTests : IDisposable
         var preview = await _renderer.RenderDocumentPreviewAsync(Request(document, Canvas));
 
         Assert.Equal(Pixels(Read(path)), Pixels(preview));
+    }
+
+    /// <summary>The brightest red value inside the checklist's area.</summary>
+    private static int Brightest(BitmapSource image)
+    {
+        var converted = new FormatConvertedBitmap(image, PixelFormats.Bgr24, null, 0);
+        var row = new byte[300 * 150 * 3];
+        converted.CopyPixels(new System.Windows.Int32Rect(10, 10, 300, 150), row, 300 * 3, 0);
+        return Enumerable.Range(0, row.Length / 3).Max(i => row[(i * 3) + 2]);
     }
 
     private static ChecklistItem Checklist(bool done) => new()

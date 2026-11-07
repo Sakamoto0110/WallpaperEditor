@@ -175,7 +175,7 @@ public sealed class ProjectTests : IDisposable
     {
         var project = ProjectFolder.Create(_path, "Minha mesa", new PixelSize(2560, 1080), _background, FitMode.Fill);
         _open.Add(project);
-        var editor = new ProjectEditor(project, item => 100 + (item.Entries.Count * 50));
+        var editor = new ProjectEditor(project, item => 100 + (((ChecklistItem)item).Entries.Count * 50));
         var list = editor.AddChecklist("Hoje", new ItemRect(0, 0, 300, 120));
         var head = project.Head;
 
@@ -189,7 +189,7 @@ public sealed class ProjectTests : IDisposable
     {
         var project = ProjectFolder.Create(_path, "Minha mesa", new PixelSize(2560, 1080), _background, FitMode.Fill);
         _open.Add(project);
-        var editor = new ProjectEditor(project, item => 100 + (item.Entries.Count * 50));
+        var editor = new ProjectEditor(project, item => 100 + (((ChecklistItem)item).Entries.Count * 50));
         var list = editor.AddChecklist("Hoje", new ItemRect(0, 0, 300, 120));
         editor.AddEntry(list.Id, "Uma");
         var entry = Assert.Single(editor.Find<ChecklistItem>(list.Id)!.Entries);
@@ -235,6 +235,238 @@ public sealed class ProjectTests : IDisposable
         Assert.NotNull(editor.Find<ImageItem>(image.Id));
         Assert.Single(editor.Find<ChecklistItem>(list.Id)!.Entries);
         Assert.Equal(ChangeKinds.ItemRestored, editor.Project.ReadHistory()[0].Change!.Kind);
+    }
+
+    [Fact]
+    public void A_restored_item_returns_to_its_place_in_the_stack()
+    {
+        var editor = NewEditor();
+        var bottom = editor.AddImage(_cheatsheet, SomeRect);
+        var middle = editor.AddChecklist("Meio", SomeRect);
+        var top = editor.AddChecklist("Topo", SomeRect);
+        var hadAll = editor.Project.Head;
+        editor.RemoveItem(middle.Id);
+
+        editor.RestoreItem(hadAll, middle.Id);
+
+        Assert.Equal([bottom.Id, middle.Id, top.Id], editor.Document.Items.Select(i => i.Id));
+    }
+
+    [Fact]
+    public void A_restored_item_goes_above_the_nearest_survivor_that_was_below_it()
+    {
+        var editor = NewEditor();
+        var a = editor.AddChecklist("A", SomeRect);
+        var b = editor.AddChecklist("B", SomeRect);
+        var c = editor.AddChecklist("C", SomeRect);
+        var d = editor.AddChecklist("D", SomeRect);
+        var hadAll = editor.Project.Head;
+        editor.RemoveItem(c.Id);
+        editor.RemoveItem(b.Id);
+
+        editor.RestoreItem(hadAll, c.Id);
+
+        Assert.Equal([a.Id, c.Id, d.Id], editor.Document.Items.Select(i => i.Id));
+    }
+
+    [Fact]
+    public void An_item_that_was_at_the_bottom_returns_to_the_bottom()
+    {
+        var editor = NewEditor();
+        var bottom = editor.AddImage(_cheatsheet, SomeRect);
+        var top = editor.AddChecklist("Topo", SomeRect);
+        var hadBoth = editor.Project.Head;
+        editor.RemoveItem(bottom.Id);
+
+        editor.RestoreItem(hadBoth, bottom.Id);
+
+        Assert.Equal([bottom.Id, top.Id], editor.Document.Items.Select(i => i.Id));
+    }
+
+    [Fact]
+    public void A_restored_item_stays_above_later_additions_only_if_it_was()
+    {
+        var editor = NewEditor();
+        var first = editor.AddImage(_cheatsheet, SomeRect);
+        var second = editor.AddChecklist("Segundo", SomeRect);
+        var hadBoth = editor.Project.Head;
+        editor.RemoveItem(second.Id);
+        var later = editor.AddChecklist("Depois", SomeRect);
+
+        editor.RestoreItem(hadBoth, second.Id);
+
+        Assert.Equal([first.Id, second.Id, later.Id], editor.Document.Items.Select(i => i.Id));
+    }
+
+    [Fact]
+    public void The_composition_file_lists_the_layers_with_their_original_names_in_order()
+    {
+        var editor = NewEditor();
+        var image = editor.AddImage(_cheatsheet, SomeRect);
+        editor.AddChecklist("Hoje", SomeRect);
+
+        using var json = System.Text.Json.JsonDocument.Parse(File.ReadAllText(Path.Combine(_path, "composition.json")));
+        var root = json.RootElement;
+
+        Assert.Equal(3, root.GetProperty("revision").GetInt32());
+        Assert.Equal("montanha.JPG", root.GetProperty("background").GetProperty("originalName").GetString());
+        Assert.StartsWith("assets/", root.GetProperty("background").GetProperty("file").GetString());
+
+        var layers = root.GetProperty("layers");
+        Assert.Equal(2, layers.GetArrayLength());
+        Assert.Equal(1, layers[0].GetProperty("order").GetInt32());
+        Assert.Equal(image.Id, layers[0].GetProperty("item").GetProperty("id").GetString());
+        Assert.Equal("linq.png", layers[0].GetProperty("item").GetProperty("source").GetProperty("originalName").GetString());
+        Assert.Equal("Hoje", layers[1].GetProperty("item").GetProperty("title").GetString());
+    }
+
+    [Fact]
+    public void The_project_files_keep_accents_readable()
+    {
+        var editor = NewEditor();
+        var list = editor.AddChecklist("Atenção", SomeRect);
+        editor.AddEntry(list.Id, "Comprar café");
+
+        Assert.Contains("Atenção", File.ReadAllText(Path.Combine(_path, "composition.json")));
+        Assert.Contains("Comprar café", File.ReadAllText(Path.Combine(_path, "revisions", "000003.json")));
+    }
+
+    [Fact]
+    public void The_composition_file_follows_a_revert()
+    {
+        var editor = NewEditor();
+        editor.AddChecklist("Hoje", SomeRect);
+
+        editor.Revert(1);
+
+        Assert.DoesNotContain("Hoje", File.ReadAllText(Path.Combine(_path, "composition.json")));
+    }
+
+    [Fact]
+    public void Tampering_with_the_composition_file_changes_nothing()
+    {
+        var editor = NewEditor();
+        var list = editor.AddChecklist("Hoje", SomeRect);
+        editor.Project.Dispose();
+        File.WriteAllText(Path.Combine(_path, "composition.json"), "{ nonsense");
+
+        var reopened = Reopen();
+
+        Assert.NotNull(reopened.Find<ChecklistItem>(list.Id));
+        Assert.Contains("Hoje", File.ReadAllText(Path.Combine(_path, "composition.json")));
+    }
+
+    [Fact]
+    public void An_older_project_without_the_composition_file_gets_one_on_opening()
+    {
+        NewEditor().Project.Dispose();
+        File.Delete(Path.Combine(_path, "composition.json"));
+
+        Reopen();
+
+        Assert.True(File.Exists(Path.Combine(_path, "composition.json")));
+    }
+
+    [Fact]
+    public void A_read_only_instance_does_not_write_the_composition_file()
+    {
+        NewEditor();
+        var file = Path.Combine(_path, "composition.json");
+        var written = File.GetLastWriteTimeUtc(file);
+
+        var second = ProjectFolder.Open(_path);
+        _open.Add(second);
+
+        Assert.Equal(written, File.GetLastWriteTimeUtc(file));
+    }
+
+    [Fact]
+    public void The_font_of_a_checklist_can_be_changed_and_is_saved()
+    {
+        var editor = NewEditor();
+        var list = editor.AddChecklist("Hoje", SomeRect);
+
+        editor.SetItemFont(list.Id, "Consolas");
+        editor.Project.Dispose();
+
+        Assert.Equal("Consolas", Reopen().Find<ChecklistItem>(list.Id)!.Style.Font);
+    }
+
+    [Fact]
+    public void Choosing_the_same_font_creates_no_revision()
+    {
+        var editor = NewEditor();
+        var list = editor.AddChecklist("Hoje", SomeRect);
+        var head = editor.Project.Head;
+
+        editor.SetItemFont(list.Id, TextStyle.Default.Font);
+
+        Assert.Equal(head, editor.Project.Head);
+    }
+
+    [Fact]
+    public void A_checklist_grows_when_a_wider_font_needs_more_room()
+    {
+        var project = ProjectFolder.Create(_path, "Minha mesa", new PixelSize(2560, 1080), _background, FitMode.Fill);
+        _open.Add(project);
+        var editor = new ProjectEditor(project, item => item.Style.Font == "Larga" ? 500 : 100);
+        var list = editor.AddChecklist("Hoje", new ItemRect(0, 0, 300, 120));
+
+        editor.SetItemFont(list.Id, "Larga");
+
+        Assert.Equal(500, editor.Find<ChecklistItem>(list.Id)!.Rect.Height);
+    }
+
+    [Fact]
+    public void Text_and_panel_opacity_are_independent_and_saved()
+    {
+        var editor = NewEditor();
+        var list = editor.AddChecklist("Hoje", SomeRect);
+
+        editor.SetItemTextOpacity(list.Id, 0.5);
+        editor.SetItemPanelOpacity(list.Id, 0);
+        editor.Project.Dispose();
+
+        var style = Reopen().Find<ChecklistItem>(list.Id)!.Style;
+        Assert.Equal(0.5, style.TextOpacity, 2);
+        Assert.Equal(0, style.PanelOpacity, 2);
+    }
+
+    [Fact]
+    public void Setting_the_same_opacity_creates_no_revision()
+    {
+        var editor = NewEditor();
+        var list = editor.AddChecklist("Hoje", SomeRect);
+        var head = editor.Project.Head;
+
+        editor.SetItemTextOpacity(list.Id, TextStyle.Default.TextOpacity);
+        editor.SetItemPanelOpacity(list.Id, TextStyle.Default.PanelOpacity);
+
+        Assert.Equal(head, editor.Project.Head);
+    }
+
+    [Theory]
+    [InlineData("#FFFFFF", 1.0)]
+    [InlineData("#FF00C800", 1.0)]
+    [InlineData("#00101218", 0.0)]
+    [InlineData("#80101218", 0.502)]
+    [InlineData("white", 1.0)]
+    public void The_alpha_of_a_color_can_be_read(string color, double expected)
+    {
+        Assert.Equal(expected, ColorAlpha.Of(color), 3);
+    }
+
+    [Theory]
+    [InlineData("#FFFFFF", 0.5, "#80FFFFFF")]
+    [InlineData("#BE101218", 1.0, "#FF101218")]
+    [InlineData("#BE101218", 0.0, "#00101218")]
+    [InlineData("#FFFFFF", 7.0, "#FFFFFF")]
+    [InlineData("#FFFFFF", 1.0, "#FFFFFF")]
+    [InlineData("#80FFFFFF", 0.5, "#80FFFFFF")]
+    [InlineData("white", 0.5, "white")]
+    public void The_alpha_of_a_color_can_be_changed(string color, double opacity, string expected)
+    {
+        Assert.Equal(expected, ColorAlpha.With(color, opacity));
     }
 
     [Fact]

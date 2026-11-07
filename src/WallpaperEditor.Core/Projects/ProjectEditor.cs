@@ -7,8 +7,8 @@ namespace WallpaperEditor.Core.Projects;
 /// revision. Nothing here touches pixels or the wallpaper: publishing is separate.
 /// </summary>
 /// <param name="project">The open project.</param>
-/// <param name="measureChecklist">The height a checklist needs, so it can grow instead of hiding entries.</param>
-public sealed class ProjectEditor(ProjectFolder project, Func<ChecklistItem, double>? measureChecklist = null)
+/// <param name="measureHeight">The height a text item needs, so it can grow instead of hiding its content.</param>
+public sealed class ProjectEditor(ProjectFolder project, Func<StyledItem, double>? measureHeight = null)
 {
     private const double MinimumItemSize = 16;
 
@@ -34,6 +34,28 @@ public sealed class ProjectEditor(ProjectFolder project, Func<ChecklistItem, dou
         var item = new ChecklistItem { Id = DocumentItem.NewId(), Rect = Sanitize(rect), Title = title };
         Apply(WithItems([.. Document.Items, item]), new RevisionChange(ChangeKinds.ItemAdded, $"Adicionou a checklist {Quoted(title)}") { ItemId = item.Id });
         return item;
+    }
+
+    public TextItem AddText(string text, ItemRect rect)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(text);
+
+        var item = (TextItem)GrowToFit(new TextItem { Id = DocumentItem.NewId(), Rect = Sanitize(rect), Text = TextItem.Normalize(text) });
+        Apply(WithItems([.. Document.Items, item]), new RevisionChange(ChangeKinds.ItemAdded, $"Adicionou {Describe(item)}") { ItemId = item.Id });
+        return item;
+    }
+
+    public void SetText(string itemId, string text)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(text);
+
+        var item = Find<TextItem>(itemId) ?? throw MissingItem(itemId);
+        var value = TextItem.Normalize(text);
+        if (value != item.Text)
+        {
+            var updated = item with { Text = value };
+            ReplaceChecklist(updated, ChangeKinds.ItemEdited, $"Editou {Describe(updated)}");
+        }
     }
 
     public void RemoveItem(string itemId)
@@ -103,13 +125,44 @@ public sealed class ProjectEditor(ProjectFolder project, Func<ChecklistItem, dou
         }
     }
 
-    public void SetChecklistFontSize(string itemId, double size)
+    public void SetItemFontSize(string itemId, double size)
     {
-        var item = Checklist(itemId);
+        var item = Styled(itemId);
         var value = Math.Clamp(size, 8, 200);
         if (value != item.Style.Size)
         {
             ReplaceChecklist(item with { Style = item.Style with { Size = value } }, ChangeKinds.ItemEdited, $"Mudou o tamanho do texto de {Describe(item)}");
+        }
+    }
+
+    public void SetItemFont(string itemId, string font)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(font);
+
+        var item = Styled(itemId);
+        if (font != item.Style.Font)
+        {
+            ReplaceChecklist(item with { Style = item.Style with { Font = font } }, ChangeKinds.ItemEdited, $"Mudou a fonte de {Describe(item)} para {font}");
+        }
+    }
+
+    public void SetItemTextOpacity(string itemId, double opacity)
+    {
+        var item = Styled(itemId);
+        var style = item.Style.WithTextOpacity(opacity);
+        if (style != item.Style)
+        {
+            ReplaceChecklist(item with { Style = style }, ChangeKinds.ItemEdited, $"Mudou a opacidade do texto de {Describe(item)}");
+        }
+    }
+
+    public void SetItemPanelOpacity(string itemId, double opacity)
+    {
+        var item = Styled(itemId);
+        var style = item.Style.WithPanelOpacity(opacity);
+        if (style != item.Style)
+        {
+            ReplaceChecklist(item with { Style = style }, ChangeKinds.ItemEdited, $"Mudou a opacidade do painel de {Describe(item)}");
         }
     }
 
@@ -163,15 +216,42 @@ public sealed class ProjectEditor(ProjectFolder project, Func<ChecklistItem, dou
         Apply(target.Document, new RevisionChange(ChangeKinds.Reverted, $"Voltou à revisão {revision}") { Target = revision });
     }
 
-    /// <summary>Brings back one item as it was in an old revision, leaving the rest of the document alone.</summary>
+    /// <summary>
+    /// Brings back one item as it was in an old revision, leaving the rest of the document alone. It returns to its
+    /// place in the stack: right above the nearest item that was below it then and still exists.
+    /// </summary>
     public void RestoreItem(int revision, string itemId)
     {
-        var item = Project.ReadRevision(revision).Document.Items.FirstOrDefault(i => i.Id == itemId) ?? throw MissingItem(itemId);
-        var items = Document.Items.Any(i => i.Id == itemId)
-            ? Document.Items.Select(i => i.Id == itemId ? item : i).ToList()
-            : [.. Document.Items, item];
+        var source = Project.ReadRevision(revision).Document.Items;
+        var item = source.FirstOrDefault(i => i.Id == itemId) ?? throw MissingItem(itemId);
+
+        var items = Document.Items.ToList();
+        var existing = items.FindIndex(i => i.Id == itemId);
+        if (existing >= 0)
+        {
+            items[existing] = item;
+        }
+        else
+        {
+            items.Insert(PlaceInStack(source, itemId, items), item);
+        }
 
         Apply(WithItems(items), new RevisionChange(ChangeKinds.ItemRestored, $"Restaurou {Describe(item)}") { ItemId = itemId, FromRevision = revision });
+    }
+
+    private static int PlaceInStack(IReadOnlyList<DocumentItem> source, string itemId, List<DocumentItem> current)
+    {
+        var position = source.ToList().FindIndex(i => i.Id == itemId);
+        for (var below = position - 1; below >= 0; below--)
+        {
+            var index = current.FindIndex(i => i.Id == source[below].Id);
+            if (index >= 0)
+            {
+                return index + 1;
+            }
+        }
+
+        return 0;
     }
 
     private void Replace(DocumentItem updated, string label) =>
@@ -179,7 +259,7 @@ public sealed class ProjectEditor(ProjectFolder project, Func<ChecklistItem, dou
             WithItems([.. Document.Items.Select(i => i.Id == updated.Id ? updated : i)]),
             new RevisionChange(ChangeKinds.ItemEdited, label) { ItemId = updated.Id });
 
-    private void ReplaceChecklist(ChecklistItem updated, string kind, string label)
+    private void ReplaceChecklist(StyledItem updated, string kind, string label)
     {
         var grown = GrowToFit(updated);
         Apply(
@@ -187,10 +267,10 @@ public sealed class ProjectEditor(ProjectFolder project, Func<ChecklistItem, dou
             new RevisionChange(kind, label) { ItemId = grown.Id });
     }
 
-    /// <summary>A checklist grows to fit new entries in one revision, rather than clipping them out of sight.</summary>
-    private ChecklistItem GrowToFit(ChecklistItem item)
+    /// <summary>Text grows to fit its content in one revision, rather than being clipped out of sight.</summary>
+    private StyledItem GrowToFit(StyledItem item)
     {
-        var needed = measureChecklist?.Invoke(item) ?? 0;
+        var needed = measureHeight?.Invoke(item) ?? 0;
         return needed > item.Rect.Height ? item with { Rect = item.Rect with { Height = Math.Ceiling(needed) } } : item;
     }
 
@@ -207,6 +287,8 @@ public sealed class ProjectEditor(ProjectFolder project, Func<ChecklistItem, dou
         Document.Items.FirstOrDefault(i => i.Id == itemId) ?? throw MissingItem(itemId);
 
     private ChecklistItem Checklist(string itemId) => Find<ChecklistItem>(itemId) ?? throw MissingItem(itemId);
+
+    private StyledItem Styled(string itemId) => Find<StyledItem>(itemId) ?? throw MissingItem(itemId);
 
     private static ChecklistEntry RequiredEntry(ChecklistItem item, string entryId) =>
         item.Entries.FirstOrDefault(e => e.Id == entryId) ?? throw new InvalidOperationException($"No entry {entryId}.");
@@ -229,6 +311,7 @@ public sealed class ProjectEditor(ProjectFolder project, Func<ChecklistItem, dou
     {
         ImageItem image => $"a imagem {image.Source.OriginalName}",
         ChecklistItem checklist => $"a checklist {Quoted(checklist.Title)}",
+        TextItem text => $"o texto {Quoted(text.Label())}",
         _ => "o item",
     };
 
