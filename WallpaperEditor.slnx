@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/WallpaperEditor.App/WallpaperEditor.App.csproj" />
+    <Project Path="src/WallpaperEditor.Core/WallpaperEditor.Core.csproj" />
+    <Project Path="src/WallpaperEditor.Platform.Windows/WallpaperEditor.Platform.Windows.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/WallpaperEditor.Core.Tests/WallpaperEditor.Core.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/WallpaperEditor.Diagnostics/WallpaperEditor.Diagnostics.csproj" />
+  </Folder>
+</Solution>

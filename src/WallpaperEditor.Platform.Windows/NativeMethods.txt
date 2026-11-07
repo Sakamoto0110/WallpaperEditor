@@ -1,0 +1,9 @@
+// Generated declarations (CsWin32). Add a name here instead of hand-writing a signature.
+IDesktopWallpaper
+DesktopWallpaper
+CoTaskMemFree
+S_OK
+GetDisplayConfigBufferSizes
+QueryDisplayConfig
+DisplayConfigGetDeviceInfo
+DISPLAYCONFIG_TARGET_DEVICE_NAME

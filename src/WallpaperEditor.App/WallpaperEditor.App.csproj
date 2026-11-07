@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <RootNamespace>WallpaperEditor.App</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\WallpaperEditor.Core\WallpaperEditor.Core.csproj" />
+    <ProjectReference Include="..\WallpaperEditor.Platform.Windows\WallpaperEditor.Platform.Windows.csproj" />
+  </ItemGroup>
+
+</Project>

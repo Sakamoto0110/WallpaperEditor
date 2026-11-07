@@ -1,0 +1,51 @@
+<Window x:Class="WallpaperEditor.App.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="WallpaperEditor"
+        Width="640"
+        Height="440"
+        MinWidth="480"
+        MinHeight="320"
+        WindowStartupLocation="CenterScreen">
+    <DockPanel Margin="16">
+        <TextBlock DockPanel.Dock="Top"
+                   Margin="0,0,0,8"
+                   FontSize="16"
+                   Text="Monitores" />
+
+        <TextBlock x:Name="StatusText"
+                   DockPanel.Dock="Bottom"
+                   Margin="0,8,0,0"
+                   TextWrapping="Wrap" />
+
+        <StackPanel DockPanel.Dock="Bottom"
+                    Margin="0,12,0,0"
+                    Orientation="Horizontal">
+            <Button x:Name="ChooseImageButton"
+                    Padding="12,4"
+                    Click="ChooseImage_Click"
+                    Content="Escolher imagem..."
+                    IsEnabled="False" />
+            <Button Margin="8,0,0,0"
+                    Padding="12,4"
+                    Click="Refresh_Click"
+                    Content="Atualizar" />
+        </StackPanel>
+
+        <ListBox x:Name="MonitorList"
+                 HorizontalContentAlignment="Stretch"
+                 SelectionChanged="MonitorList_SelectionChanged">
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <StackPanel Margin="4">
+                        <TextBlock FontWeight="SemiBold" Text="{Binding Title}" />
+                        <TextBlock Text="{Binding Details}" />
+                        <TextBlock Foreground="Gray"
+                                   Text="{Binding Wallpaper}"
+                                   TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+    </DockPanel>
+</Window>
