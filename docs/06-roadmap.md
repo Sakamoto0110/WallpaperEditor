@@ -45,21 +45,33 @@ alterar os outros dois. A tela foi conferida por UI Automation.
 diagnóstico, que usa o mesmo serviço do app. O botão "Escolher imagem" do app ainda não foi clicado, e esta tela
 será substituída na Fase 3.
 
-## Fase 3 — Static (próxima)
+## Fase 3 — Static (implementada)
 
-- `Rendering`: decodificar, ajustar à resolução do monitor, codificar PNG
-- Tela completa: monitor, arquivo, modo de ajuste, pré-visualização
-- `state.json`: atribuições, wallpaper original, restaurar
-- Avaliar `NekoLib.Navigation.Wpf` em comparação com `CommunityToolkit.Mvvm`
-- Tratamento de erros: modo span, slideshow, monitor desconectado
-- Ícone do app
-- Medir as [metas de leveza](01-visao-do-produto.md#só-o-app-altera-o-wallpaper): tempo de abertura, tempo de
-  publicação, e nenhum processo depois de fechar. Comparar com e sem ReadyToRun
+- [x] `Rendering`: decodificar, respeitar a orientação EXIF, ajustar à resolução do monitor, codificar PNG
+- [x] `WallpaperPublisher` e `state.json`: atribuições, wallpaper original, restaurar
+- [x] Tela completa: mapa dos monitores, arquivo, modo de ajuste, pré-visualização
+- [x] Avaliar `NekoLib.Navigation.Wpf`: é voltada a navegação em camadas para kiosk e PDV, e seria peso sem uso em
+  um app de uma ou duas telas. Escolhido `CommunityToolkit.Mvvm`
+- [x] Tratamento de erros: modo span, slideshow, monitor desconectado, resolução alterada, imagem ilegível
+- [x] Ícone do app
+- [x] Medir as [metas de leveza](01-visao-do-produto.md#só-o-app-altera-o-wallpaper)
+- [x] 61 testes automatizados; publicação real testada no monitor vertical, pela ferramenta de diagnóstico
+- [ ] **Usuário:** usar a tela de verdade: escolher imagem, aplicar e restaurar nos 3 monitores
 
 **Concluída quando** cada um dos 3 monitores puder ter uma imagem e um modo de ajuste diferentes, o
 "restaurar original" devolver o estado anterior, e as metas de leveza estiverem medidas.
 
-## Fase 4 — Dynamic
+**Limites do que foi testado:** o botão "Aplicar" e o seletor de arquivo ainda não foram usados na tela, e não há
+testes automatizados dos view models. O modo span e a mudança de resolução só foram exercitados com dublês, não no
+Windows real.
+
+## Fase 4 — Dynamic (implementada, em conferência)
+
+**Falta o usuário testar:** arrastar, redimensionar e girar itens com o mouse, e criar um projeto novo com os
+diálogos de arquivo. O resto foi exercitado de verdade: por 134 testes automatizados e, na tela, por UI Automation
+(selecionar itens, publicar, marcar tarefas, remover, restaurar um item e reverter). Esses passos não usaram o mouse
+nem os diálogos de arquivo. A publicação real foi só no monitor vertical. Mudar um projeto para outro formato de
+monitor só foi testado no `Rendering`.
 
 Em duas etapas, com o motor primeiro:
 
@@ -69,7 +81,7 @@ Em duas etapas, com o motor primeiro:
 - Renderização dos dois tipos de item: imagem e checklist (com recorte, e caixas de seleção desenhadas como
   geometria)
 - Testes automatizados de tudo isso
-- Medir o custo real em disco ([hipótese do formato](03-formato-de-projeto.md#custo-em-disco))
+- Medir o custo real em disco: [1,57 KiB por revisão](03-formato-de-projeto.md#custo-em-disco)
 
 **4b — Editor**
 - Abrir e criar projeto; reabrir o último usado
@@ -77,7 +89,9 @@ Em duas etapas, com o motor primeiro:
 - Opção de tamanho real (100%) para imagens, com aviso ao reduzir, para cheatsheets continuarem legíveis
 - Editar checklist: adicionar, remover e marcar tarefas
 - Painel de histórico, com a descrição de cada mudança e miniaturas
-- Publicar em um monitor, mostrando quando o head está à frente do que foi publicado
+- Lista de itens, para alcançar um item escondido atrás de outro e usar sem mouse
+- Publicar em um monitor, mostrando quando o head está à frente do que foi publicado; marcar uma tarefa publica
+  sozinho, se o projeto já estiver naquele monitor
 
 **Concluída quando** for possível, nos 3 exemplos de uso (cheatsheet, checklist, imagens):
 criar um projeto, publicar, alterar, publicar de novo, reverter, restaurar um item removido, fechar, mover a

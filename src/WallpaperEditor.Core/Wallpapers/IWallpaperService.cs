@@ -15,6 +15,9 @@ public interface IWallpaperService
     /// <summary>The fit mode, which Windows applies to all monitors at once.</summary>
     WallpaperPosition GetPosition();
 
+    /// <summary>Changes the fit mode of every monitor. Only for leaving span mode, at the user's request.</summary>
+    void SetPosition(WallpaperPosition position);
+
     SlideshowState GetSlideshowState();
 }
 

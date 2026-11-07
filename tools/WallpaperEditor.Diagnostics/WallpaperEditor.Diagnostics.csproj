@@ -10,6 +10,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\WallpaperEditor.Core\WallpaperEditor.Core.csproj" />
     <ProjectReference Include="..\..\src\WallpaperEditor.Platform.Windows\WallpaperEditor.Platform.Windows.csproj" />
+    <ProjectReference Include="..\..\src\WallpaperEditor.Rendering\WallpaperEditor.Rendering.csproj" />
   </ItemGroup>
 
 </Project>

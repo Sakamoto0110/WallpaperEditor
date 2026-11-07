@@ -62,6 +62,18 @@ Encontradas durante o protótipo **[Medido]**, e tratadas como requisitos:
 - **Caixas de seleção são desenhadas como geometria.** Os caracteres `☑` e `☐` vêm de fonte de fallback
   e ficam com tamanhos diferentes.
 
+Encontradas na implementação **[Medido]**:
+
+- **O WPF ignora a orientação EXIF.** Sem tratamento, fotos de celular apareceriam deitadas. `LoadedImage` lê a
+  orientação e aplica a rotação, e o ajuste usa o tamanho já corrigido.
+- **`BitmapCreateOptions.IgnoreImageCache` falha com `StreamSource`** (`ArgumentNullException`). O arquivo é lido por
+  stream, o que já evita o cache de imagens do WPF, indexado por URI.
+- **`BitmapScalingMode.HighQuality` preserva os pixels em 1:1,** portanto um cheatsheet em tamanho real não borra. O
+  modo Centralizar arredonda a posição para pixels inteiros, para continuar em 1:1 quando a diferença de tamanho é
+  ímpar.
+- **Bitmaps decodificados continuam presos à thread do decoder, mesmo congelados.** Para cruzar threads, copie os
+  pixels para um novo bitmap. `RenderTargetBitmap` congelado não tem esse problema.
+
 Outras:
 
 - `Rendering` precisa de uma thread STA dedicada, e os testes também, pois `DrawingVisual` exige STA.

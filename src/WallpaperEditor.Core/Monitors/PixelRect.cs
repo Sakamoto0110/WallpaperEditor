@@ -10,6 +10,8 @@ public readonly record struct PixelRect(int Left, int Top, int Right, int Bottom
 
     public int Height => Bottom - Top;
 
+    public PixelSize Size => new(Width, Height);
+
     public bool IsEmpty => Width <= 0 || Height <= 0;
 
     public bool IsPortrait => Height > Width;

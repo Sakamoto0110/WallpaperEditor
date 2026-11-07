@@ -143,6 +143,36 @@ no monitor vertical, e em 122,0 MiB com a mesma imagem nos três monitores.
 1.400 MiB sem nenhuma troca, por causa de outros programas. Por isso, os números acima são os do `explorer`, e o
 acréscimo no total da GPU não foi atribuído à troca.
 
+## Custo de abrir o app
+
+**[Medido em 2026-11-06]** Com `scripts/measure-startup.ps1`: build Release, 8 aberturas de cada variação, mediana
+das 7 últimas, sem aplicar nada. Nenhuma foi feita logo depois de reiniciar o PC, então uma abertura realmente fria
+deve demorar mais.
+
+| Variação | Janela utilizável | Memória aberta (working set / privada) | No disco |
+|---|---|---|---|
+| Tema Fluent, sem ReadyToRun | 682 ms | 194 / 158 MiB | 1,2 MiB |
+| Tema Fluent, com ReadyToRun | 651 ms | 187 / 150 MiB | 1,5 MiB |
+| Tema clássico, com ReadyToRun | 576 ms | 194 / 159 MiB | 1,5 MiB |
+
+Em todas, **nenhum processo fica depois de fechar**. Os valores de disco excluem o .NET Desktop Runtime 10, que
+precisa estar instalado.
+
+**Decisões:** tema Fluent, porque cerca de 75 ms é um preço baixo por uma interface que segue o tema do sistema; e
+**sem ReadyToRun**, pois 31 ms estão dentro do ruído.
+
+A memória, perto de 190 MiB com a janela aberta, é o número menos "leve" do projeto, e sobe para cerca de 266 MiB no
+editor, com um projeto de teste aberto e várias publicações em build Debug. Ela só existe enquanto a janela está
+aberta, e o uso previsto é abrir, alterar e fechar. Se virar problema, as imagens decodificadas são o primeiro lugar a
+investigar. A causa ainda não foi medida.
+
+**Publicar**, medido pela ferramenta de diagnóstico no monitor vertical, com uma imagem de 6000×3375:
+
+| Etapa | Tempo |
+|---|---|
+| Renderizar, gravar e chamar `SetWallpaper` | 346 a 526 ms |
+| Shell terminar o trabalho ([medido antes](#custo-de-trocar-o-wallpaper)) | Cerca de 450 ms |
+
 ## Clicar no próprio wallpaper
 
 Marcar uma tarefa clicando no desktop, sem abrir o app, **não é possível sem um processo residente**,

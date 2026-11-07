@@ -29,7 +29,6 @@ Minha mesa/
 │  ├─ 000001.json
 │  ├─ 000002.json
 │  └─ 000003.json
-├─ cache/                  miniaturas; pode ser apagado a qualquer momento
 └─ .lock                   aberto com acesso exclusivo enquanto o projeto é editado
 ```
 
@@ -38,7 +37,7 @@ que o app caia.
 
 ## `project.json`
 
-O único arquivo mutável além de `cache/`.
+O único arquivo mutável.
 
 ```json
 {
@@ -82,8 +81,7 @@ reexecutado para abrir uma revisão.
   "change": { "kind": "item-added", "itemId": "chk-1", "label": "Adicionou checklist \"Hoje\"" },
   "document": {
     "background": {
-      "asset": "3fa9c1…e2.jpg",
-      "originalName": "montanha.jpg",
+      "source": { "asset": "3fa9c1…e2.jpg", "originalName": "montanha.jpg" },
       "fit": "fill"
     },
     "items": [
@@ -146,7 +144,7 @@ Descrição da mudança, usada na tela de histórico:
 | `created` | Criação do projeto |
 | `item-added` / `item-removed` | Item adicionado ou removido |
 | `item-edited` | Item movido, redimensionado, reordenado ou alterado |
-| `checklist-entry-added` / `-removed` / `-toggled` | Mudança em uma tarefa |
+| `checklist-entry-added` / `-removed` / `-toggled` / `-edited` | Mudança em uma tarefa |
 | `background-changed` | Troca do fundo |
 | `reverted` | Reversão; inclui `target`, o número da revisão restaurada |
 | `item-restored` | Item trazido de uma revisão antiga; inclui `fromRevision` |
@@ -168,7 +166,8 @@ Mesmo depois de reverter para a revisão 2, as revisões 3 e 4 continuam existin
 formas de recuperar algo:
 
 - **Reverter:** o documento inteiro volta àquele estado.
-- **Restaurar item:** só um item daquela revisão volta para o documento atual, sem afetar o resto.
+- **Restaurar item:** só um item daquela revisão volta para o documento atual, sem afetar o resto. Um item que não
+  existia mais volta por cima dos outros, e sua ordem original não é recuperada.
 
 Nem alterar nem publicar reescrevem revisões anteriores.
 
@@ -186,9 +185,8 @@ guardado entre execuções, e por isso qualquer revisão pode gerar um wallpaper
 
 | O quê | Tamanho | Observação |
 |---|---|---|
-| Uma revisão | Poucos KiB **[Hipótese]** | Milhares delas continuam sendo irrelevantes |
+| Uma revisão | **1,57 KiB em média [Medido]**, em um projeto com 2 itens e 19 revisões | Mil revisões ocupam cerca de 1,5 MiB; o tamanho cresce com o número de itens |
 | Assets | O tamanho dos originais | O maior custo real, e só cresce ao importar algo novo |
-| Cache de miniaturas | Pequeno | Descartável |
 
 O PNG publicado **não** fica no projeto.
 
@@ -198,11 +196,12 @@ Uma queda de energia durante uma alteração não pode corromper o projeto:
 
 1. Gravar `revisions/.tmp-<id>.json`, com flush em disco.
 2. Renomear para `revisions/000004.json`. Essa etapa é atômica no mesmo volume.
-3. Gravar `project.json` em um arquivo temporário e substituir com `File.Replace`, apontando o head para a
-   revisão 4.
+3. Gravar `project.json` em um arquivo temporário e substituir o atual, apontando o head para a revisão 4.
 
 Interrompido antes da etapa 2, resta um `.tmp-*`, descartado ao abrir. Interrompido entre 2 e 3, a revisão
-existe, mas o head aponta para a anterior: nada se perdeu, e o app oferece a revisão mais nova.
+existe, mas o head aponta para a anterior: nada se perdeu, e ao abrir o app adota a revisão mais nova, avisando na
+tela. O mesmo vale se a revisão do head estiver danificada: o app abre na revisão legível mais recente, e a
+danificada continua na lista, sem ser sobrescrita. Todos esses casos têm testes em `ProjectTests`.
 
 ## Compatibilidade
 

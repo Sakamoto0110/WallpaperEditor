@@ -3,9 +3,11 @@
     <Project Path="src/WallpaperEditor.App/WallpaperEditor.App.csproj" />
     <Project Path="src/WallpaperEditor.Core/WallpaperEditor.Core.csproj" />
     <Project Path="src/WallpaperEditor.Platform.Windows/WallpaperEditor.Platform.Windows.csproj" />
+    <Project Path="src/WallpaperEditor.Rendering/WallpaperEditor.Rendering.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/WallpaperEditor.Core.Tests/WallpaperEditor.Core.Tests.csproj" />
+    <Project Path="tests/WallpaperEditor.Rendering.Tests/WallpaperEditor.Rendering.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/WallpaperEditor.Diagnostics/WallpaperEditor.Diagnostics.csproj" />

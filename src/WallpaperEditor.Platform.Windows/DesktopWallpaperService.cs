@@ -77,6 +77,9 @@ public sealed unsafe class DesktopWallpaperService : IMonitorService, IWallpaper
         return (WallpaperPosition)position;
     }
 
+    public void SetPosition(WallpaperPosition position) =>
+        Create().SetPosition((DESKTOP_WALLPAPER_POSITION)position);
+
     public SlideshowState GetSlideshowState()
     {
         DESKTOP_SLIDESHOW_STATE state;

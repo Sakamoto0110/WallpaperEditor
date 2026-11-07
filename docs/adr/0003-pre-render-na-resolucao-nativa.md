@@ -44,7 +44,8 @@ Dynamic:
 
 ## Consequências
 
-- O custo é um PNG por monitor em uso, de alguns MiB. O anterior é apagado depois que o novo é aceito.
+- O custo é de dois PNGs por monitor em uso, de alguns MiB cada: o atual e o anterior, que pode ainda estar sendo
+  lido pelo shell durante trocas rápidas.
 - **Se a resolução ou a orientação do monitor mudar, a imagem publicada fica incorreta.** O app
   precisa detectar isso (por `WM_DISPLAYCHANGE` quando aberto, e ao iniciar) e oferecer republicar.
 - A cópia em cache é idêntica à imagem enviada (teste T5), e o quadriculado de 1 px chega intacto à tela (teste T6).

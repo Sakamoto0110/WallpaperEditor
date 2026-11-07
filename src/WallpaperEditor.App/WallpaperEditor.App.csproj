@@ -5,12 +5,24 @@
     <TargetFramework>net10.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>assets\neko-purple-light.ico</ApplicationIcon>
     <RootNamespace>WallpaperEditor.App</RootNamespace>
+    <!-- ThemeMode, the Fluent theme, is still marked as experimental. -->
+    <NoWarn>$(NoWarn);WPF0001</NoWarn>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="assets\neko-purple-light.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\WallpaperEditor.Core\WallpaperEditor.Core.csproj" />
     <ProjectReference Include="..\WallpaperEditor.Platform.Windows\WallpaperEditor.Platform.Windows.csproj" />
+    <ProjectReference Include="..\WallpaperEditor.Rendering\WallpaperEditor.Rendering.csproj" />
   </ItemGroup>
 
 </Project>

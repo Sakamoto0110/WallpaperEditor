@@ -39,11 +39,11 @@ Isso pesa especialmente em uma configuração como esta, em que cada monitor tem
 Nada muda sozinho. Nenhuma atualização por horário, nenhum arquivo observado, nenhuma tarefa em segundo plano.
 
 Daí vem uma consequência prática: como o app precisa ser aberto até para marcar uma tarefa, **ele tem que
-abrir rápido**. Metas propostas, a confirmar na Fase 3:
+abrir rápido**. Metas, e o que foi medido até agora:
 
 | Meta | Valor proposto | Referência |
 |---|---|---|
-| Da abertura à janela utilizável | ≤ 1,5 s | Medir na Fase 3 |
+| Da abertura à janela utilizável | ≤ 1,5 s | **Cerca de 0,65 s** ([medido](04-integracao-windows.md#custo-de-abrir-o-app)) |
 | Recompor e publicar | ≤ 1 s | Cerca de 0,9 s somando as medições: 0,5 s de renderização e 0,45 s do shell ([custo medido](04-integracao-windows.md#custo-de-trocar-o-wallpaper)) |
 | Depois de fechar | 0 processos | Requisito, não meta |
 

@@ -11,7 +11,12 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using WallpaperEditor.Core.Monitors;
+using WallpaperEditor.Core.Projects;
+using WallpaperEditor.Core.Publishing;
+using WallpaperEditor.Core.Rendering;
+using WallpaperEditor.Core.Wallpapers;
 using WallpaperEditor.Platform.Windows;
+using WallpaperEditor.Rendering;
 
 namespace WallpaperEditor.Diagnostics;
 
@@ -35,6 +40,9 @@ internal static class Program
                 case "rewrite-same-path": RewriteSamePath(args[1], args[2]); return 0;
                 case "bench": Bench(args[1], int.Parse(args[2]), int.Parse(args[3])); return 0;
                 case "compare": Compare(args[1], args[2]); return 0;
+                case "publish": Publish(args[1], args[2], Enum.Parse<FitMode>(args[3], ignoreCase: true)); return 0;
+                case "restore-published": RestorePublished(args[1]); return 0;
+                case "demo-project": DemoProject(args[1], args[2], args[3]); return 0;
                 default:
                     Console.Error.WriteLine("""
                         monitors                        list what the OS enumerates (read-only)
@@ -45,6 +53,9 @@ internal static class Program
                         rewrite-same-path <src> <dst>   overwrite dst with src, then set dst again
                         bench <dir> <count> <gapMs>     time repeated changes, as the app would do them
                         compare <a> <b>                 compare two images pixel by pixel
+                        publish <dataDir> <image> <fit> full app pipeline on the portrait monitor, with its own state
+                        restore-published <dataDir>     undo that publish, using the state in dataDir
+                        demo-project <dir> <bg> <image> build a sample project for the portrait monitor (changes no wallpaper)
                         """);
                     return 2;
             }
@@ -221,6 +232,71 @@ internal static class Program
         var pixels = x.Length / 3;
         Console.WriteLine($"size={left.PixelWidth}x{left.PixelHeight} differentPixels={different}/{pixels} ({100.0 * different / pixels:F2}%) maxDelta={maxDelta} meanDelta={(double)total / pixels:F3}");
     }
+
+    private static void Publish(string dataDir, string image, FitMode fit)
+    {
+        var portrait = Portrait();
+        var before = Others();
+        var publisher = Publisher(dataDir);
+
+        var sw = Stopwatch.StartNew();
+        var assignment = publisher.PublishAsync(portrait.Id, image, fit).GetAwaiter().GetResult();
+        Console.WriteLine($"{portrait.Name}: render, write and SetWallpaper took {sw.Elapsed.TotalMilliseconds:F0} ms");
+
+        var file = assignment.PublishedFile!;
+        var decoded = Decode(file);
+        Console.WriteLine($"published {new FileInfo(file).Length / 1048576.0:F2} MiB at {decoded.PixelWidth}x{decoded.PixelHeight}");
+        Console.WriteLine($"reported matches published: {string.Equals(Service.GetWallpaper(portrait.Id), file, StringComparison.OrdinalIgnoreCase)}");
+        Console.WriteLine($"original kept: {assignment.OriginalWallpaper}");
+        VerifyOthers(before, portrait);
+    }
+
+    private static void RestorePublished(string dataDir)
+    {
+        var portrait = Portrait();
+        var before = Others();
+        Publisher(dataDir).RestoreOriginal(portrait.Id);
+        Console.WriteLine($"restored: {Service.GetWallpaper(portrait.Id)}");
+        VerifyOthers(before, portrait);
+    }
+
+    /// <summary>A project with one of everything, and the image it renders to next to it, for inspection.</summary>
+    private static void DemoProject(string folder, string background, string image)
+    {
+        var canvas = Portrait().Bounds.Size;
+        using var project = ProjectFolder.Create(folder, "Demonstração", canvas, background, FitMode.Fill);
+        var editor = new ProjectEditor(project, ChecklistPainter.RequiredHeight);
+
+        var picture = editor.AddImage(image, new ItemRect(140, 1150, 800, 600));
+        editor.Place(picture.Id, picture.Rect, 355);
+
+        var list = editor.AddChecklist("Hoje", new ItemRect(100, 120, 880, 200));
+        foreach (var task in new[] { "Revisar a documentação", "Testar o editor", "Marcar uma tarefa pelo app", "Uma tarefa bem mais comprida, para ver como o texto quebra em duas linhas dentro do painel" })
+        {
+            editor.AddEntry(list.Id, task);
+        }
+
+        editor.ToggleEntry(list.Id, editor.Find<ChecklistItem>(list.Id)!.Entries[0].Id);
+
+        var output = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(folder))!, "demo-output.png");
+        new WpfWallpaperRenderer()
+            .RenderDocumentToFileAsync(new DocumentRenderRequest(editor.Document, canvas, project.ResolveAsset, canvas), output)
+            .GetAwaiter()
+            .GetResult();
+
+        Console.WriteLine($"revisions={project.Head} canvas={canvas} output={output}");
+        foreach (var revision in project.ReadHistory())
+        {
+            Console.WriteLine($"  {revision.Number}: {revision.Change?.Label}");
+        }
+    }
+
+    private static WallpaperPublisher Publisher(string dataDir) => new(
+        Service,
+        Service,
+        new WpfWallpaperRenderer(),
+        new AppStateStore(Path.Combine(dataDir, "state.json")),
+        Path.Combine(dataDir, "published"));
 
     private static MonitorInfo Portrait()
     {

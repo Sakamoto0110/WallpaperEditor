@@ -48,8 +48,8 @@ A direção das dependências é o que torna o projeto testável: o `Core` roda 
 **Target frameworks:** `net10.0` para Core; `net10.0-windows` para App, Rendering e Platform.Windows;
 `net10.0-windows10.0.19041.0` para AnimatedHost, que usa uma API WinRT.
 
-**Publicação do app:** framework-dependent com ReadyToRun, para reduzir o tempo de abertura sem distribuir o
-runtime inteiro. A confirmar por medição na Fase 3.
+**Publicação do app:** framework-dependent, sem ReadyToRun, que [não trouxe ganho
+mensurável](04-integracao-windows.md#custo-de-abrir-o-app). Exige o .NET Desktop Runtime 10 instalado.
 
 ## O fluxo de dados
 
@@ -80,14 +80,21 @@ sequenceDiagram
     A->>R: Renderizar documento em 1080x1920
     R-->>A: PNG em pasta temporária
     A->>A: Mover para published/ com nome novo
+    A->>A: Salvar o wallpaper original, se for a primeira vez
     A->>P: SetWallpaper(monitor, arquivo)
     P->>W: IDesktopWallpaper::SetWallpaper
     W-->>P: OK
-    A->>A: Salvar atribuição e apagar o arquivo anterior
+    A->>A: Salvar atribuição e limpar arquivos antigos
 ```
 
-A ordem importa: o arquivo anterior só é apagado depois que o Windows aceitou o novo, e a atribuição só é
-gravada depois do sucesso. Uma falha em qualquer etapa deixa o monitor como estava.
+A ordem importa, e é coberta por testes em `WallpaperPublisher`:
+
+- **O original é salvo antes da troca.** Se o app cair logo depois dela, o original não se perde.
+- **A atribuição só é gravada depois do sucesso.** Uma falha em qualquer etapa deixa o monitor e o estado como
+  estavam, e remove o arquivo novo.
+- **Ficam o arquivo atual e o anterior.** Como a chamada é assíncrona, o anterior pode ainda estar em uso durante
+  trocas rápidas, como ao marcar várias tarefas. Isso custa um PNG a mais em disco.
+- **Um wallpaper trocado fora do app vira o novo original,** pois é a escolha mais recente do usuário.
 
 **Esse OK significa "agendado".** `SetWallpaper` retorna em 3 ms, e o shell trabalha por mais cerca de 450 ms
 ([custo medido](04-integracao-windows.md#custo-de-trocar-o-wallpaper)). `GetWallpaper` já informa o caminho novo
@@ -113,8 +120,10 @@ stateDiagram-v2
 - **Publicar é explícito, exceto ao marcar uma tarefa,** que já faz a troca (Q3 da
   [visão do produto](01-visao-do-produto.md#perguntas-em-aberto)). Nos outros casos, o head pode estar à frente
   do que está no monitor, e a tela mostra essa diferença de forma visível.
-- **O histórico mostra as mudanças em texto,** como "Adicionou checklist Hoje" ou "Marcou tarefa", com miniatura
-  gerada sob demanda em `cache/`.
+- **O histórico mostra as mudanças em texto,** como "Adicionou a checklist Hoje" ou "Marcou a tarefa", com uma
+  miniatura da revisão selecionada, gerada na hora.
+- **Marcações rápidas se juntam.** `CoalescingRunner` faz uma publicação de cada vez; pedidos feitos durante uma
+  delas viram uma só no final, que sempre inclui o último clique.
 
 ## Fluxo: modo animado
 
@@ -166,12 +175,18 @@ pequena alteração.
 
 ## Editor (WPF)
 
-- **Padrão:** MVVM. `CommunityToolkit.Mvvm` é a opção padrão, salvo se `NekoLib.Navigation.Wpf` se mostrar
-  adequada; a avaliação está prevista na Fase 3.
-- **Preview:** o mesmo código de desenho do `Rendering`, em escala reduzida. O que aparece no editor é o que será
-  publicado.
-- **Manipulação:** as alças de mover, redimensionar e girar são elementos WPF sobre o preview, e não fazem parte da
-  imagem.
+- **Padrão:** MVVM com `CommunityToolkit.Mvvm`. A `NekoLib.Navigation.Wpf` foi avaliada e descartada: é voltada a
+  navegação em camadas para kiosk e PDV, e seria peso sem uso em um app de uma ou duas telas.
+- **Tema:** Fluent (`ThemeMode="System"`), que segue o claro ou escuro do Windows, sem dependência nova.
+- **Um só código de desenho.** `DocumentPainter` desenha tanto na tela quanto no PNG final, então o que aparece no
+  editor é o que será publicado.
+- **Arrastar não recompõe nada.** Em `EditorSurface`, cada item é um elemento próprio. Um arrasto só muda a posição
+  dele, e o documento só muda ao soltar, gerando uma única revisão.
+- **Manipulação:** as alças de redimensionar e girar ficam em uma camada à parte, e não fazem parte da imagem. A
+  matemática de itens girados fica em `ItemGeometry`, no Core, onde pode ser testada.
+- **Lista de itens:** alcança um item escondido atrás de outro, e funciona sem mouse.
+- **Checkboxes por binding, não por comando,** porque o UI Automation, usado por leitores de tela, não dispara o
+  comando de um checkbox.
 - **DPI:** o manifesto declara `PerMonitorV2`. Sem isso, os retângulos dos monitores vêm virtualizados, e as
   imagens seriam geradas no tamanho errado.
 - **Renderização final** roda em uma thread STA dedicada, fora da thread de UI.
@@ -180,7 +195,10 @@ pequena alteração.
 
 | Situação | Comportamento |
 |---|---|
-| Monitor desconectado | Atribuição fica como "desconectada", nunca é redirecionada a outro monitor |
+| Monitor desconectado | Atribuição fica guardada, sem aparecer na lista, e nunca é redirecionada a outro monitor |
+| Resolução ou orientação do monitor mudou | Aviso para aplicar de novo. Ignorado se o wallpaper atual não for do app |
+| Imagem ilegível ou removida | Mensagem na tela, e o wallpaper não muda |
+| `state.json` danificado ou de versão mais nova | Arquivo guardado à parte (`.unreadable`), e o app abre com estado vazio |
 | Modo span ativo no Windows | Publicar é bloqueado, com explicação, e o usuário decide mudar (a posição é global e afeta os outros monitores) |
 | Slideshow do Windows ativo | Aviso de que o slideshow vai sobrescrever o wallpaper |
 | Pasta de projeto em uso por outra instância | Abrir como somente leitura, por meio do `.lock` |
@@ -193,7 +211,7 @@ pequena alteração.
 
 | Camada | Abordagem |
 |---|---|
-| Core | xUnit: regras de histórico, leitura e escrita, recuperação de escrita interrompida |
-| Rendering | xUnit em thread STA, com imagens de referência: dimensões exatas, recorte de texto, ordem dos itens, comparação com tolerância |
+| Core | xUnit, com dublês do Windows e do renderizador: monitores, ajuste, publicação, estado, projeto, histórico, recuperação de escrita interrompida, geometria de itens girados |
+| Rendering | xUnit, com imagens geradas no teste: dimensões exatas, os 4 ajustes, EXIF, pixel a pixel, ordem e rotação de itens, recorte de checklists, erros |
 | Platform.Windows | Sem teste automatizado; os testes alteram o desktop real. Roteiro manual em [06 — Roadmap](06-roadmap.md) |
-| App | View models testados por meio das interfaces do Core |
+| App | Sem testes automatizados: a lógica fica no Core, e a tela é conferida à mão ou por UI Automation. Permite `--data` e `--project`, para testar sem tocar no estado real |
