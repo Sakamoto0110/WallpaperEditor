@@ -116,4 +116,67 @@ public class ItemGeometryTests
 
         Assert.Equal(45, angle, 3);
     }
+
+    [Fact]
+    public void Dragging_the_right_side_changes_only_the_width_and_keeps_the_left_side()
+    {
+        var resized = ItemGeometry.ResizeFromEdge(Rect, 0, ItemEdge.Right, new CanvasPoint(350, 400), 16);
+
+        Assert.Equal(new ItemRect(100, 100, 250, 100), resized);
+    }
+
+    [Fact]
+    public void Dragging_the_top_side_changes_only_the_height_and_keeps_the_bottom()
+    {
+        var resized = ItemGeometry.ResizeFromEdge(Rect, 0, ItemEdge.Top, new CanvasPoint(0, 50), 16);
+
+        Assert.Equal(new ItemRect(100, 50, 200, 150), resized);
+    }
+
+    [Fact]
+    public void On_a_rotated_item_the_opposite_side_stays_where_it_is()
+    {
+        // Turned a quarter around (200,150): the item's bottom side is now on the left of the canvas, at x=150.
+        var before = ItemGeometry.EdgePoint(Rect, 90, ItemEdge.Top);
+        var dragged = new CanvasPoint(before.X + 40, before.Y);
+
+        var resized = ItemGeometry.ResizeFromEdge(Rect, 90, ItemEdge.Top, dragged, 16);
+        var bottom = ItemGeometry.EdgePoint(resized, 90, ItemEdge.Bottom);
+
+        Assert.Equal(150, bottom.X, 3);
+        Assert.Equal(150, bottom.Y, 3);
+        Assert.Equal(140, resized.Height, 3);
+        Assert.Equal(200, resized.Width, 3);
+    }
+
+    [Fact]
+    public void A_side_cannot_be_dragged_past_the_minimum_size()
+    {
+        var resized = ItemGeometry.ResizeFromEdge(Rect, 0, ItemEdge.Left, new CanvasPoint(500, 0), 16);
+
+        Assert.Equal(16, resized.Width);
+        Assert.Equal(300 - 16, resized.X);
+    }
+
+    [Fact]
+    public void A_point_on_an_unrotated_item_is_measured_from_its_corner()
+    {
+        var local = ItemGeometry.ToLocal(Rect, 0, new CanvasPoint(130, 160));
+
+        Assert.Equal(30, local.X, 3);
+        Assert.Equal(60, local.Y, 3);
+    }
+
+    [Fact]
+    public void A_click_on_a_rotated_item_lands_where_it_looks()
+    {
+        // Turned a quarter around (200,150), the item's top-left corner sits at (250,50) on the canvas.
+        var corner = ItemGeometry.ToLocal(Rect, 90, new CanvasPoint(250, 50));
+        var center = ItemGeometry.ToLocal(Rect, 90, new CanvasPoint(200, 150));
+
+        Assert.Equal(0, corner.X, 3);
+        Assert.Equal(0, corner.Y, 3);
+        Assert.Equal(100, center.X, 3);
+        Assert.Equal(50, center.Y, 3);
+    }
 }

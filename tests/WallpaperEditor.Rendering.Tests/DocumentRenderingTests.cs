@@ -60,6 +60,60 @@ public sealed class DocumentRenderingTests : IDisposable
     }
 
     [Fact]
+    public async Task A_mirrored_image_is_flipped_left_to_right_in_place()
+    {
+        var halves = WriteHalves("halves.png");
+        var plain = Image(halves, 100, 50, 200, 100);
+
+        var straight = await Render(Document(plain), Canvas);
+        var mirrored = await Render(Document(plain with { Mirrored = true }), Canvas);
+
+        AssertColor(Red, Pixel(straight, 130, 100));
+        AssertColor(Green, Pixel(mirrored, 130, 100));
+        AssertColor(Red, Pixel(mirrored, 270, 100));
+        AssertColor(Blue, Pixel(mirrored, 60, 100));
+        AssertColor(Blue, Pixel(mirrored, 340, 100));
+    }
+
+    [Fact]
+    public async Task A_mirrored_image_still_turns_around_its_center()
+    {
+        // Flipped, then turned half around: left and right come back where they were.
+        var halves = WriteHalves("halves-turned.png");
+        var item = Image(halves, 100, 50, 200, 100) with { Mirrored = true, Rotation = 180 };
+
+        var output = await Render(Document(item), Canvas);
+
+        AssertColor(Red, Pixel(output, 130, 100));
+        AssertColor(Green, Pixel(output, 270, 100));
+    }
+
+    /// <summary>Red on the left half, green on the right: shows which way an image faces.</summary>
+    private AssetRef WriteHalves(string name)
+    {
+        const int Width = 100, Height = 50;
+        var pixels = new byte[Width * Height * 3];
+        for (var y = 0; y < Height; y++)
+        {
+            for (var x = 0; x < Width; x++)
+            {
+                var color = x < Width / 2 ? Red : Green;
+                var i = ((y * Width) + x) * 3;
+                (pixels[i], pixels[i + 1], pixels[i + 2]) = (color.B, color.G, color.R);
+            }
+        }
+
+        var encoder = new PngBitmapEncoder();
+        encoder.Frames.Add(BitmapFrame.Create(BitmapSource.Create(Width, Height, 96, 96, PixelFormats.Bgr24, null, pixels, Width * 3)));
+        using (var file = File.Create(Path.Combine(_folder, name)))
+        {
+            encoder.Save(file);
+        }
+
+        return new AssetRef(name, name);
+    }
+
+    [Fact]
     public async Task Rotation_turns_an_item_around_its_center()
     {
         // A wide bar turned a quarter becomes a tall one, through the same center.

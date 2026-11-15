@@ -11,6 +11,15 @@ public enum ItemCorner
     BottomLeft,
 }
 
+/// <summary>The middle of a side of an item, in the item's own, unrotated terms.</summary>
+public enum ItemEdge
+{
+    Top,
+    Right,
+    Bottom,
+    Left,
+}
+
 /// <summary>The math of dragging rotated items around, kept apart from the UI so it can be tested.</summary>
 public static class ItemGeometry
 {
@@ -23,6 +32,14 @@ public static class ItemGeometry
         var center = Center(rect);
         var local = Rotate(new CanvasPoint(point.X - center.X, point.Y - center.Y), -rotation);
         return Math.Abs(local.X) <= rect.Width / 2 && Math.Abs(local.Y) <= rect.Height / 2;
+    }
+
+    /// <summary>A canvas point in the item's own unrotated coordinates, measured from its top-left corner.</summary>
+    public static CanvasPoint ToLocal(ItemRect rect, double rotation, CanvasPoint point)
+    {
+        var center = Center(rect);
+        var local = Rotate(new CanvasPoint(point.X - center.X, point.Y - center.Y), -rotation);
+        return new CanvasPoint(local.X + (rect.Width / 2), local.Y + (rect.Height / 2));
     }
 
     /// <summary>Where a corner ends up on the canvas once the item is rotated.</summary>
@@ -69,6 +86,34 @@ public static class ItemGeometry
         return new ItemRect(centerX - (width / 2), centerY - (height / 2), width, height);
     }
 
+    /// <summary>Where the middle of a side ends up on the canvas once the item is rotated.</summary>
+    public static CanvasPoint EdgePoint(ItemRect rect, double rotation, ItemEdge edge)
+    {
+        var center = Center(rect);
+        var (sx, sy) = Signs(edge);
+        var offset = Rotate(new CanvasPoint(sx * rect.Width / 2, sy * rect.Height / 2), rotation);
+        return new CanvasPoint(center.X + offset.X, center.Y + offset.Y);
+    }
+
+    /// <summary>
+    /// The rectangle after dragging the middle of a side to <paramref name="pointer"/>: only the width or only the
+    /// height changes, and the opposite side stays exactly where it is on the canvas.
+    /// </summary>
+    public static ItemRect ResizeFromEdge(ItemRect rect, double rotation, ItemEdge edge, CanvasPoint pointer, double minimumSize)
+    {
+        var anchor = EdgePoint(rect, rotation, Opposite(edge));
+        var (sx, sy) = Signs(edge);
+
+        var local = Rotate(new CanvasPoint(pointer.X - anchor.X, pointer.Y - anchor.Y), -rotation);
+        var width = sx != 0 ? Math.Max(minimumSize, sx * local.X) : rect.Width;
+        var height = sy != 0 ? Math.Max(minimumSize, sy * local.Y) : rect.Height;
+
+        var toCenter = Rotate(new CanvasPoint(sx * width / 2, sy * height / 2), rotation);
+        var centerX = anchor.X + toCenter.X;
+        var centerY = anchor.Y + toCenter.Y;
+        return new ItemRect(centerX - (width / 2), centerY - (height / 2), width, height);
+    }
+
     /// <summary>The rotation that points the top of the item at the pointer, snapping to straight angles.</summary>
     public static double RotationToward(ItemRect rect, CanvasPoint pointer)
     {
@@ -87,6 +132,24 @@ public static class ItemGeometry
         ItemCorner.BottomRight => (1, 1),
         ItemCorner.BottomLeft => (-1, 1),
         _ => throw new ArgumentOutOfRangeException(nameof(corner), corner, null),
+    };
+
+    private static (int X, int Y) Signs(ItemEdge edge) => edge switch
+    {
+        ItemEdge.Top => (0, -1),
+        ItemEdge.Right => (1, 0),
+        ItemEdge.Bottom => (0, 1),
+        ItemEdge.Left => (-1, 0),
+        _ => throw new ArgumentOutOfRangeException(nameof(edge), edge, null),
+    };
+
+    private static ItemEdge Opposite(ItemEdge edge) => edge switch
+    {
+        ItemEdge.Top => ItemEdge.Bottom,
+        ItemEdge.Right => ItemEdge.Left,
+        ItemEdge.Bottom => ItemEdge.Top,
+        ItemEdge.Left => ItemEdge.Right,
+        _ => throw new ArgumentOutOfRangeException(nameof(edge), edge, null),
     };
 
     private static ItemCorner Opposite(ItemCorner corner) => corner switch

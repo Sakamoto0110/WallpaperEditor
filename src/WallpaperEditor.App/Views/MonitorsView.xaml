@@ -6,6 +6,19 @@
         <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
         <SolidColorBrush x:Key="Accent" Color="#A4779A" />
 
+        <Style x:Key="HiddenWhenEmpty" TargetType="TextBlock">
+            <Setter Property="Margin" Value="0,8,0,0" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Style.Triggers>
+                <Trigger Property="Text" Value="">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                </Trigger>
+                <Trigger Property="Text" Value="{x:Null}">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
         <Style x:Key="MonitorItem" TargetType="ListBoxItem">
             <Setter Property="Canvas.Left" Value="{Binding MapLeft}" />
             <Setter Property="Canvas.Top" Value="{Binding MapTop}" />
@@ -102,16 +115,20 @@
             </ListBox.ItemTemplate>
         </ListBox>
 
-        <Grid Grid.Row="2" Margin="0,18,0,0" MaxWidth="900">
+        <!-- Scrolls instead of cutting off the last controls when the window is short. -->
+        <ScrollViewer Grid.Row="2"
+                      Margin="0,18,0,0"
+                      Focusable="False"
+                      HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Auto">
+        <Grid MaxWidth="900">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="320" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <Border Grid.Column="0"
-                    VerticalAlignment="Top"
-                    HorizontalAlignment="Center"
-                    Width="{Binding PreviewWidth}"
+            <StackPanel Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Top">
+            <Border Width="{Binding PreviewWidth}"
                     Height="{Binding PreviewHeight}"
                     Background="Black"
                     BorderBrush="#555"
@@ -129,6 +146,16 @@
                                TextWrapping="Wrap" />
                 </Grid>
             </Border>
+
+            <!-- A dynamic wallpaper can be used without the editor: only its components respond. -->
+            <Button Margin="0,10,0,0"
+                    HorizontalAlignment="Stretch"
+                    Command="{Binding InteractCommand}"
+                    Content="Interagir"
+                    Style="{DynamicResource AccentButtonStyle}"
+                    ToolTip="Abre o wallpaper numa janela, onde tarefas, contadores, barras e alternâncias respondem, e cada mudança vai direto para o monitor."
+                    Visibility="{Binding SelectedMonitor.HasProject, Converter={StaticResource BoolToVisibility}, FallbackValue=Collapsed}" />
+            </StackPanel>
 
             <StackPanel Grid.Column="1" Margin="16,0,0,0">
                 <TextBlock FontSize="15"
@@ -186,6 +213,10 @@
                             Command="{Binding OpenProjectCommand}"
                             Content="Abrir projeto..." />
                 </UniformGrid>
+                <CheckBox Margin="0,8,0,0"
+                          Content="Editar wallpaper atual"
+                          IsChecked="{Binding EditCurrentWallpaper}"
+                          ToolTip="O novo projeto começa com uma cópia do wallpaper que este monitor mostra agora, em vez de uma imagem escolhida." />
                 <Button Margin="0,8,0,0"
                         HorizontalAlignment="Stretch"
                         Command="{Binding EditMonitorProjectCommand}"
@@ -193,13 +224,14 @@
                         Visibility="{Binding SelectedMonitor.HasProject, Converter={StaticResource BoolToVisibility}, FallbackValue=Collapsed}" />
             </StackPanel>
         </Grid>
+        </ScrollViewer>
 
-        <StackPanel Grid.Row="3" Margin="0,12,0,0">
-            <TextBlock Margin="0,0,0,4"
-                       Foreground="#D9A441"
-                       Text="{Binding Warning}"
-                       TextWrapping="Wrap" />
-            <TextBlock Text="{Binding Status}" TextWrapping="Wrap" />
+        <!-- Takes no room while there is nothing to say, so the controls above get it. -->
+        <StackPanel Grid.Row="3">
+            <TextBlock Foreground="#D9A441"
+                       Style="{StaticResource HiddenWhenEmpty}"
+                       Text="{Binding Warning}" />
+            <TextBlock Style="{StaticResource HiddenWhenEmpty}" Text="{Binding Status}" />
         </StackPanel>
     </Grid>
 </UserControl>

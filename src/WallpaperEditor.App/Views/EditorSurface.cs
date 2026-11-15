@@ -14,13 +14,22 @@ namespace WallpaperEditor.App.Views;
 /// image, so a drag only changes an element's transform and nothing has to be recomposed while the mouse moves.
 /// The document only changes when a drag ends.
 /// </summary>
+/// <remarks>
+/// Controls drawn in items, such as a task's checkbox, work here as if the wallpaper were clickable. A click that
+/// does not move acts on the control; one that moves drags the item, as anywhere else. A progress bar is the one
+/// exception: dragging along it sets the value. Nothing reaches the monitor until "Atualizar wallpaper".
+/// </remarks>
 public sealed class EditorSurface : Grid
 {
     private const double HandleRadius = 6;
+    private const double EdgeHandleSize = 10;
     private const double HandleGrabRadius = 11;
     private const double RotationHandleDistance = 28;
     private const double MinimumItemSize = 16;
     private const double Margin_ = 12;
+
+    /// <summary>In screen pixels: less than this is a click on a control, more is a drag of the item.</summary>
+    private const double ClickSlop = 4;
 
     private readonly Canvas _content = new();
     private readonly Canvas _overlay = new() { IsHitTestVisible = false };
@@ -28,6 +37,9 @@ public sealed class EditorSurface : Grid
     private readonly Line _rotationStem = new() { Stroke = Accent, StrokeThickness = 2, Visibility = Visibility.Collapsed };
     private readonly Ellipse _rotationHandle = MakeHandle();
     private readonly Ellipse[] _cornerHandles = [MakeHandle(), MakeHandle(), MakeHandle(), MakeHandle()];
+
+    /// <summary>Square, unlike the round corners: a side changes one dimension, a corner both.</summary>
+    private readonly Rectangle[] _edgeHandles = [MakeEdgeHandle(), MakeEdgeHandle(), MakeEdgeHandle(), MakeEdgeHandle()];
 
     private EditorViewModel? _editor;
     private ItemView? _selectedView;
@@ -37,8 +49,11 @@ public sealed class EditorSurface : Grid
 
     private DragMode _drag;
     private ItemCorner _dragCorner;
+    private ItemEdge _dragEdge;
     private CanvasPoint _dragStart;
     private ItemRect _dragStartRect;
+    private Point _pressedAt;
+    private Hotspot? _pendingClick;
     private bool _nudging;
 
     public EditorSurface()
@@ -59,6 +74,11 @@ public sealed class EditorSurface : Grid
             _overlay.Children.Add(handle);
         }
 
+        foreach (var handle in _edgeHandles)
+        {
+            _overlay.Children.Add(handle);
+        }
+
         SizeChanged += (_, _) => UpdateScale();
     }
 
@@ -67,7 +87,9 @@ public sealed class EditorSurface : Grid
         None,
         Move,
         Resize,
+        ResizeEdge,
         Rotate,
+        Progress,
     }
 
     private static SolidColorBrush Accent { get; } = MakeAccent();
@@ -122,15 +144,37 @@ public sealed class EditorSurface : Grid
                     return;
                 }
             }
+
+            // After the corners, which win on a small item where both are close together.
+            foreach (var edge in Enum.GetValues<ItemEdge>())
+            {
+                if (Near(display, ToDisplay(ItemGeometry.EdgePoint(selected.LiveRect, selected.LiveRotation, edge))))
+                {
+                    _dragEdge = edge;
+                    StartDrag(DragMode.ResizeEdge, selected, canvas);
+                    return;
+                }
+            }
         }
 
         var hit = _editor.Document.Items.LastOrDefault(i => ItemGeometry.Contains(i.Rect, i.Rotation, canvas));
         _editor.Select(hit?.Id);
 
-        if (_selectedView is { } nowSelected && hit is not null)
+        if (_selectedView is not { } nowSelected || hit is null)
         {
-            StartDrag(DragMode.Move, nowSelected, canvas);
+            return;
         }
+
+        _pressedAt = display;
+        _pendingClick = HotspotAt(hit, canvas);
+        if (_pendingClick is { Action: HotspotAction.SetProgress })
+        {
+            StartDrag(DragMode.Progress, nowSelected, canvas);
+            PreviewProgress(nowSelected, canvas);
+            return;
+        }
+
+        StartDrag(DragMode.Move, nowSelected, canvas);
     }
 
     protected override void OnMouseMove(MouseEventArgs e)
@@ -149,9 +193,24 @@ public sealed class EditorSurface : Grid
             return;
         }
 
+        if (_drag == DragMode.Move && _pendingClick is not null)
+        {
+            if ((display - _pressedAt).Length < ClickSlop)
+            {
+                return;
+            }
+
+            // It moved: a drag of the item after all, not a click on its control.
+            _pendingClick = null;
+        }
+
         var canvas = ToCanvas(display);
         switch (_drag)
         {
+            case DragMode.Progress:
+                PreviewProgress(view, canvas);
+                return;
+
             case DragMode.Move:
                 view.LiveRect = _dragStartRect with
                 {
@@ -164,6 +223,11 @@ public sealed class EditorSurface : Grid
                 // Images keep their shape unless Shift is held; a checklist has no shape to keep.
                 var keepAspect = view.Item is ImageItem && !Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
                 view.LiveRect = ItemGeometry.ResizeFromCorner(_dragStartRect, view.LiveRotation, _dragCorner, canvas, keepAspect, MinimumItemSize);
+                break;
+
+            case DragMode.ResizeEdge:
+                // A side always changes one dimension only, an image included: that is what it is for.
+                view.LiveRect = ItemGeometry.ResizeFromEdge(_dragStartRect, view.LiveRotation, _dragEdge, canvas, MinimumItemSize);
                 break;
 
             case DragMode.Rotate:
@@ -245,6 +309,18 @@ public sealed class EditorSurface : Grid
         return brush;
     }
 
+    private static Rectangle MakeEdgeHandle() => new()
+    {
+        Width = EdgeHandleSize,
+        Height = EdgeHandleSize,
+        RadiusX = 2,
+        RadiusY = 2,
+        Fill = Brushes.White,
+        Stroke = Accent,
+        StrokeThickness = 2,
+        Visibility = Visibility.Collapsed,
+    };
+
     private static Ellipse MakeHandle() => new()
     {
         Width = HandleRadius * 2,
@@ -272,7 +348,10 @@ public sealed class EditorSurface : Grid
         }
 
         var view = _selectedView;
+        var mode = _drag;
+        var click = _pendingClick;
         _drag = DragMode.None;
+        _pendingClick = null;
 
         if (IsMouseCaptured)
         {
@@ -286,14 +365,38 @@ public sealed class EditorSurface : Grid
 
         view.IsInteracting = false;
 
-        if (commit)
-        {
-            _editor?.CommitPlacement(view.Item.Id, view.LiveRect, view.LiveRotation);
-        }
-        else
+        if (!commit)
         {
             view.ResetToItem();
             UpdateOverlay();
+            return;
+        }
+
+        switch (mode)
+        {
+            case DragMode.Progress when view.Shown is ProgressItem progress:
+                _editor?.SetProgress(view.Item.Id, progress.Percent);
+                break;
+
+            case DragMode.Move when click is not null:
+                _editor?.Interact(view.Item.Id, click);
+                break;
+
+            default:
+                _editor?.CommitPlacement(view.Item.Id, view.LiveRect, view.LiveRotation);
+                break;
+        }
+    }
+
+    private static Hotspot? HotspotAt(DocumentItem item, CanvasPoint canvas) => DocumentHits.HotspotAt(item, canvas);
+
+    /// <summary>Shows the new percentage while dragging. The document only changes when the mouse is released.</summary>
+    private void PreviewProgress(ItemView view, CanvasPoint canvas)
+    {
+        if (view.Item is ProgressItem progress && _pendingClick is { } bar)
+        {
+            var local = ItemGeometry.ToLocal(progress.Rect, progress.Rotation, canvas);
+            view.Shown = progress with { Percent = bar.PercentAt(local.X) };
         }
     }
 
@@ -314,7 +417,7 @@ public sealed class EditorSurface : Grid
         }
 
         _content.Children.Clear();
-        _content.Children.Add(new BackgroundView(_editor));
+        _content.Children.Add(new BackgroundView(_editor.Document.Background, _editor.Canvas, _editor.Images));
 
         foreach (var item in _editor.Document.Items)
         {
@@ -354,7 +457,22 @@ public sealed class EditorSurface : Grid
                 handle.Visibility = Visibility.Collapsed;
             }
 
+            foreach (var handle in _edgeHandles)
+            {
+                handle.Visibility = Visibility.Collapsed;
+            }
+
             return;
+        }
+
+        var edges = Enum.GetValues<ItemEdge>();
+        for (var i = 0; i < edges.Length; i++)
+        {
+            var point = ToDisplay(ItemGeometry.EdgePoint(view.LiveRect, view.LiveRotation, edges[i]));
+            Canvas.SetLeft(_edgeHandles[i], point.X - (EdgeHandleSize / 2));
+            Canvas.SetTop(_edgeHandles[i], point.Y - (EdgeHandleSize / 2));
+            _edgeHandles[i].RenderTransform = new RotateTransform(view.LiveRotation, EdgeHandleSize / 2, EdgeHandleSize / 2);
+            _edgeHandles[i].Visibility = Visibility.Visible;
         }
 
         var points = new PointCollection();
@@ -407,108 +525,41 @@ public sealed class EditorSurface : Grid
                     return Cursors.SizeAll;
                 }
             }
+
+            foreach (var edge in Enum.GetValues<ItemEdge>())
+            {
+                if (Near(display, ToDisplay(ItemGeometry.EdgePoint(view.LiveRect, view.LiveRotation, edge))))
+                {
+                    return EdgeCursor(edge, view.LiveRotation);
+                }
+            }
         }
 
         var canvas = ToCanvas(display);
-        return _editor.Document.Items.Any(i => ItemGeometry.Contains(i.Rect, i.Rotation, canvas))
-            ? Cursors.SizeAll
-            : Cursors.Arrow;
+        var hit = _editor.Document.Items.LastOrDefault(i => ItemGeometry.Contains(i.Rect, i.Rotation, canvas));
+        return hit is null ? Cursors.Arrow
+            : HotspotAt(hit, canvas) is not null ? Cursors.Hand
+            : Cursors.SizeAll;
     }
 
     private static bool Near(Point a, Point b) => (a - b).Length <= HandleGrabRadius;
+
+    /// <summary>The double arrow closest to the side's direction on screen, once the item is turned.</summary>
+    private static Cursor EdgeCursor(ItemEdge edge, double rotation)
+    {
+        var horizontal = edge is ItemEdge.Left or ItemEdge.Right;
+        var turned = ((rotation % 180) + 180) % 180;
+        if (turned is > 45 and < 135)
+        {
+            horizontal = !horizontal;
+        }
+
+        return horizontal ? Cursors.SizeWE : Cursors.SizeNS;
+    }
 
     private CanvasPoint ToCanvas(Point display) =>
         new((display.X - _offsetX) / _scale, (display.Y - _offsetY) / _scale);
 
     private Point ToDisplay(CanvasPoint canvas) =>
         new((canvas.X * _scale) + _offsetX, (canvas.Y * _scale) + _offsetY);
-
-    /// <summary>Elements draw from their own origin. Quality settings match the published image.</summary>
-    private abstract class PaintedView : FrameworkElement
-    {
-        protected PaintedView()
-        {
-            IsHitTestVisible = false;
-            RenderOptions.SetBitmapScalingMode(this, BitmapScalingMode.HighQuality);
-            TextOptions.SetTextFormattingMode(this, TextFormattingMode.Display);
-        }
-    }
-
-    private sealed class BackgroundView : PaintedView
-    {
-        private readonly EditorViewModel _editor;
-
-        public BackgroundView(EditorViewModel editor)
-        {
-            _editor = editor;
-            Width = editor.Canvas.Width;
-            Height = editor.Canvas.Height;
-        }
-
-        protected override void OnRender(DrawingContext drawingContext) =>
-            DocumentPainter.DrawBackground(drawingContext, _editor.Document.Background, _editor.Canvas, _editor.Images);
-    }
-
-    private sealed class ItemView : PaintedView
-    {
-        private readonly DocumentImages _images;
-        private readonly RotateTransform _rotation = new();
-        private ItemRect _rect;
-        private bool _isInteracting;
-
-        public ItemView(DocumentItem item, DocumentImages images)
-        {
-            Item = item;
-            _images = images;
-            RenderTransform = _rotation;
-            ResetToItem();
-        }
-
-        public DocumentItem Item { get; }
-
-        public ItemRect LiveRect
-        {
-            get => _rect;
-            set
-            {
-                _rect = value;
-                Canvas.SetLeft(this, value.X);
-                Canvas.SetTop(this, value.Y);
-                Width = value.Width;
-                Height = value.Height;
-                _rotation.CenterX = value.Width / 2;
-                _rotation.CenterY = value.Height / 2;
-            }
-        }
-
-        public double LiveRotation
-        {
-            get => _rotation.Angle;
-            set => _rotation.Angle = value;
-        }
-
-        /// <summary>While dragging, use what is already decoded; the drop draws it again at full quality.</summary>
-        public bool IsInteracting
-        {
-            get => _isInteracting;
-            set
-            {
-                if (_isInteracting && !value)
-                {
-                    InvalidateVisual();
-                }
-
-                _isInteracting = value;
-            }
-        }
-
-        public void ResetToItem()
-        {
-            LiveRect = Item.Rect;
-            LiveRotation = Item.Rotation;
-        }
-
-        protected override void OnRender(DrawingContext drawingContext) =>
-            DocumentPainter.DrawItem(drawingContext, Item, Width, Height, _images, showMissing: true, preferCached: _isInteracting);
-    }
 }

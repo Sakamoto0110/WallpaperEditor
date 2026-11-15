@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using WallpaperEditor.App.Companion;
 using WallpaperEditor.Core.Monitors;
 using WallpaperEditor.Core.Projects;
 using WallpaperEditor.Core.Publishing;
@@ -13,9 +14,29 @@ using WallpaperEditor.Rendering;
 
 namespace WallpaperEditor.App.ViewModels;
 
+// The options of a list override ToString: it is what UI Automation, and so a screen reader, announces for an item
+// shown through DisplayMemberPath. A record's own ToString would read out its fields.
 public sealed record MonitorOption(MonitorInfo Info)
 {
     public string Label => $"{Info.Name} ({Info.Bounds.Width} × {Info.Bounds.Height})";
+
+    public override string ToString() => Label;
+}
+
+public sealed record PanelShapeOption(PanelShape Shape, string Label)
+{
+    public override string ToString() => Label;
+}
+
+public sealed record TailSideOption(TailSide Side, string Label)
+{
+    public override string ToString() => Label;
+}
+
+/// <summary>A null <see cref="Align"/> is automatic, which is why the list binds the option and not its value.</summary>
+public sealed record TextAlignOption(TextAlign? Align, string Label)
+{
+    public override string ToString() => Label;
 }
 
 public sealed record HistoryRow(int Number, string Label, string When, bool IsHead, bool IsValid, string? RemovedItemId);
@@ -77,8 +98,10 @@ public sealed partial class EditorViewModel : ObservableObject, IDisposable
     private readonly WpfWallpaperRenderer _renderer;
     private readonly IDialogs _dialogs;
     private readonly Action _back;
+    private readonly CompanionChannel _companion;
     private readonly ProjectEditor _editor;
     private readonly CoalescingRunner _publishRunner;
+    private readonly int _headAtOpen;
     private CancellationTokenSource? _thumbnailCancellation;
     private bool _syncing;
     private bool _refreshingItems;
@@ -90,8 +113,10 @@ public sealed partial class EditorViewModel : ObservableObject, IDisposable
         WallpaperPublisher publisher,
         WpfWallpaperRenderer renderer,
         IDialogs dialogs,
-        Action back)
+        Action back,
+        CompanionChannel companion)
     {
+        _companion = companion;
         _monitors = monitors;
         _wallpapers = wallpapers;
         _publisher = publisher;
@@ -100,6 +125,7 @@ public sealed partial class EditorViewModel : ObservableObject, IDisposable
         _back = back;
         _editor = new ProjectEditor(project, StyledItemPainter.RequiredHeight);
         _publishRunner = new CoalescingRunner(PublishLatestAsync);
+        _headAtOpen = project.Head;
         Images = new DocumentImages(project.ResolveAsset);
 
         Status = project.IsReadOnly
@@ -179,11 +205,16 @@ public sealed partial class EditorViewModel : ObservableObject, IDisposable
     [NotifyPropertyChangedFor(nameof(IsChecklistSelected))]
     [NotifyPropertyChangedFor(nameof(IsTextSelected))]
     [NotifyPropertyChangedFor(nameof(IsStyledSelected))]
+    [NotifyPropertyChangedFor(nameof(IsControlSelected))]
+    [NotifyPropertyChangedFor(nameof(IsCounterSelected))]
+    [NotifyPropertyChangedFor(nameof(IsProgressSelected))]
+    [NotifyPropertyChangedFor(nameof(IsToggleSelected))]
     [NotifyPropertyChangedFor(nameof(HasSelection))]
     [NotifyCanExecuteChangedFor(nameof(RemoveSelectedCommand))]
     [NotifyCanExecuteChangedFor(nameof(BringForwardCommand))]
     [NotifyCanExecuteChangedFor(nameof(SendBackwardCommand))]
     [NotifyCanExecuteChangedFor(nameof(RealSizeCommand))]
+    [NotifyCanExecuteChangedFor(nameof(MirrorCommand))]
     [NotifyCanExecuteChangedFor(nameof(AddEntryCommand))]
     public partial DocumentItem? SelectedItem { get; set; }
 
@@ -197,9 +228,54 @@ public sealed partial class EditorViewModel : ObservableObject, IDisposable
 
     public bool IsStyledSelected => SelectedItem is StyledItem;
 
+    public bool IsControlSelected => SelectedItem is ControlItem;
+
+    public bool IsCounterSelected => SelectedItem is CounterItem;
+
+    public bool IsProgressSelected => SelectedItem is ProgressItem;
+
+    public bool IsToggleSelected => SelectedItem is ToggleItem;
+
+    /// <summary>The label of a counter, progress bar or switch.</summary>
+    [ObservableProperty]
+    public partial string ControlLabel { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial int CounterValue { get; set; }
+
+    [ObservableProperty]
+    public partial double ProgressPercent { get; set; }
+
+    [ObservableProperty]
+    public partial bool ToggleOn { get; set; }
+
+    [ObservableProperty]
+    public partial string ToggleOnText { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial string ToggleOffText { get; set; } = string.Empty;
+
     /// <summary>The content of a text item. Commits when the box loses focus.</summary>
     [ObservableProperty]
     public partial string ItemText { get; set; } = string.Empty;
+
+    public IReadOnlyList<TextAlignOption> TextAlignOptions { get; } =
+    [
+        new(null, "Automático"),
+        new(TextAlign.Left, "Esquerda"),
+        new(TextAlign.Center, "Centro"),
+        new(TextAlign.Right, "Direita"),
+        new(TextAlign.Justify, "Justificado"),
+    ];
+
+    [ObservableProperty]
+    public partial TextAlignOption? ItemTextAlign { get; set; }
+
+    [ObservableProperty]
+    public partial bool ItemBold { get; set; }
+
+    [ObservableProperty]
+    public partial bool ItemItalic { get; set; }
 
     [ObservableProperty]
     public partial double ItemX { get; set; }
@@ -246,6 +322,29 @@ public sealed partial class EditorViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     public partial double ItemPanelOpacity { get; set; } = 100;
+
+    public IReadOnlyList<PanelShapeOption> PanelShapeOptions { get; } =
+    [
+        new(PanelShape.Rounded, "Arredondado"),
+        new(PanelShape.Speech, "Balão de fala"),
+        new(PanelShape.Thought, "Balão de pensamento"),
+    ];
+
+    public IReadOnlyList<TailSideOption> TailSideOptions { get; } =
+    [
+        new(TailSide.Left, "Esquerda"),
+        new(TailSide.Right, "Direita"),
+    ];
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasTail))]
+    public partial PanelShape ItemPanelShape { get; set; }
+
+    [ObservableProperty]
+    public partial TailSide ItemTail { get; set; }
+
+    /// <summary>Only balloons have a tail to turn.</summary>
+    public bool HasTail => ItemPanelShape != PanelShape.Rounded;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(AddEntryCommand))]
@@ -300,6 +399,34 @@ public sealed partial class EditorViewModel : ObservableObject, IDisposable
     public void CommitPlacement(string itemId, ItemRect rect, double rotation) =>
         Edit(() => _editor.Place(itemId, rect, rotation));
 
+    /// <summary>A click on a control drawn in the preview. It changes the project, never the monitor by itself.</summary>
+    public void Interact(string itemId, Hotspot hotspot)
+    {
+        ArgumentNullException.ThrowIfNull(hotspot);
+
+        Edit(() =>
+        {
+            switch (hotspot.Action)
+            {
+                case HotspotAction.ToggleEntry when hotspot.EntryId is { } entryId:
+                    _editor.ToggleEntry(itemId, entryId);
+                    break;
+                case HotspotAction.Decrement:
+                    _editor.StepCounter(itemId, -1);
+                    break;
+                case HotspotAction.Increment:
+                    _editor.StepCounter(itemId, 1);
+                    break;
+                case HotspotAction.Toggle when _editor.Find<ToggleItem>(itemId) is { } toggle:
+                    _editor.SetToggle(itemId, !toggle.On);
+                    break;
+            }
+        });
+    }
+
+    /// <summary>Called when a drag along a progress bar ends. One drag is one revision.</summary>
+    public void SetProgress(string itemId, int percent) => Edit(() => _editor.SetProgress(itemId, percent));
+
     public void Select(string? itemId) =>
         SelectedItem = itemId is null ? null : Document.Items.FirstOrDefault(i => i.Id == itemId);
 
@@ -332,6 +459,9 @@ public sealed partial class EditorViewModel : ObservableObject, IDisposable
                     ImageItem image => image.Source.OriginalName,
                     ChecklistItem list => list.Title.Length > 0 ? list.Title : "Checklist",
                     TextItem text => text.Label(),
+                    CounterItem counter => counter.Label.Length > 0 ? counter.Label : "Contador",
+                    ProgressItem progress => progress.Label.Length > 0 ? progress.Label : "Progresso",
+                    ToggleItem toggle => toggle.Label.Length > 0 ? toggle.Label : "Alternância",
                     _ => "Item",
                 }));
             }
@@ -412,6 +542,46 @@ public sealed partial class EditorViewModel : ObservableObject, IDisposable
         }
     }
 
+    partial void OnItemTextAlignChanged(TextAlignOption? value)
+    {
+        if (!_syncing && value is not null && SelectedItem is TextItem item)
+        {
+            Edit(() => _editor.SetTextAlign(item.Id, value.Align));
+        }
+    }
+
+    partial void OnItemBoldChanged(bool value)
+    {
+        if (!_syncing && SelectedItem is TextItem item)
+        {
+            Edit(() => _editor.SetTextBold(item.Id, value));
+        }
+    }
+
+    partial void OnItemItalicChanged(bool value)
+    {
+        if (!_syncing && SelectedItem is TextItem item)
+        {
+            Edit(() => _editor.SetTextItalic(item.Id, value));
+        }
+    }
+
+    partial void OnItemPanelShapeChanged(PanelShape value)
+    {
+        if (!_syncing && SelectedItem is StyledItem item)
+        {
+            Edit(() => _editor.SetItemPanelShape(item.Id, value));
+        }
+    }
+
+    partial void OnItemTailChanged(TailSide value)
+    {
+        if (!_syncing && SelectedItem is StyledItem item)
+        {
+            Edit(() => _editor.SetItemTail(item.Id, value));
+        }
+    }
+
     partial void OnItemTextChanged(string value)
     {
         if (_syncing || SelectedItem is not TextItem item)
@@ -430,10 +600,102 @@ public sealed partial class EditorViewModel : ObservableObject, IDisposable
         Edit(() => _editor.SetText(item.Id, value));
     }
 
+    partial void OnControlLabelChanged(string value)
+    {
+        if (!_syncing && SelectedItem is ControlItem item)
+        {
+            Edit(() => _editor.SetControlLabel(item.Id, value));
+        }
+    }
+
+    partial void OnCounterValueChanged(int value)
+    {
+        if (!_syncing && SelectedItem is CounterItem item)
+        {
+            Edit(() => _editor.SetCounterValue(item.Id, value));
+        }
+    }
+
+    partial void OnProgressPercentChanged(double value)
+    {
+        if (!_syncing && SelectedItem is ProgressItem item)
+        {
+            Edit(() => _editor.SetProgress(item.Id, (int)Math.Round(value)));
+        }
+    }
+
+    partial void OnToggleOnChanged(bool value)
+    {
+        if (!_syncing && SelectedItem is ToggleItem item)
+        {
+            Edit(() => _editor.SetToggle(item.Id, value));
+        }
+    }
+
+    partial void OnToggleOnTextChanged(string value) => CommitToggleTexts(value);
+
+    partial void OnToggleOffTextChanged(string value) => CommitToggleTexts(value);
+
+    private void CommitToggleTexts(string value)
+    {
+        if (_syncing || SelectedItem is not ToggleItem item)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            // A state with no text would look like nothing on the wallpaper.
+            Status = "Os dois estados precisam de um texto.";
+            SyncInspector();
+            return;
+        }
+
+        Edit(() => _editor.SetToggleTexts(item.Id, ToggleOnText, ToggleOffText));
+    }
+
     partial void OnSelectedHistoryChanged(HistoryRow? value) => _ = LoadHistoryThumbnailAsync(value);
 
     [RelayCommand]
-    private void Back() => _back();
+    private async Task BackAsync()
+    {
+        if (await ConfirmLeaveAsync())
+        {
+            _back();
+        }
+    }
+
+    /// <summary>
+    /// Asks before leaving with changes the monitor does not show. The project itself is always saved; what would be
+    /// lost is only the moment to update the wallpaper. Opening and closing without changing anything never asks.
+    /// </summary>
+    /// <returns>True to go on leaving.</returns>
+    public async Task<bool> ConfirmLeaveAsync()
+    {
+        if (!IsEditable || _editor.Project.Head == _headAtOpen || !HasUnpublishedChanges || PublishMonitor is not { } monitor)
+        {
+            return true;
+        }
+
+        var onMonitor = _publisher.AssignmentsOf(ProjectPath)
+            .Any(a => string.Equals(a.MonitorId, monitor.Info.Id.Value, StringComparison.OrdinalIgnoreCase));
+        var message = onMonitor
+            ? $"O wallpaper de {monitor.Info.Name} ainda não mostra as alterações feitas agora.\n\nO projeto já está salvo: só o wallpaper ficaria desatualizado."
+            : $"Este projeto ainda não está em {monitor.Info.Name}.\n\nO projeto já está salvo: atualizar coloca ele como wallpaper desse monitor.";
+
+        switch (_dialogs.Choose("Wallpaper desatualizado", message, "Atualizar e sair", "Sair sem atualizar", "Cancelar"))
+        {
+            case 0:
+                await PublishQuietlyAsync();
+
+                // If it failed, stay: the status line says why, and leaving would hide it.
+                return !HasUnpublishedChanges;
+            case 1:
+                return true;
+            default:
+                return false;
+        }
+    }
 
     [RelayCommand]
     private void AddImage()
@@ -486,6 +748,47 @@ public sealed partial class EditorViewModel : ObservableObject, IDisposable
     }
 
     [RelayCommand]
+    private void AddCounter() => AddControl(400, rect => _editor.AddCounter("Contador", rect));
+
+    [RelayCommand]
+    private void AddProgress() => AddControl(480, rect => _editor.AddProgress("Progresso", rect));
+
+    [RelayCommand]
+    private void AddToggle() => AddControl(400, rect => _editor.AddToggle("Modo", rect));
+
+    /// <summary>
+    /// Centered, and as tall as its content: the editor grows it to fit. Each one added in a row lands a little
+    /// further down, instead of exactly on top of the last, where it would hide it.
+    /// </summary>
+    private void AddControl(double preferredWidth, Func<ItemRect, ControlItem> add)
+    {
+        const double Cascade = 40;
+
+        var width = Math.Round(Math.Min(preferredWidth, Canvas.Width * 0.8));
+        var rect = new ItemRect(Math.Round((Canvas.Width - width) / 2), Math.Round(Canvas.Height * 0.4), width, 40);
+        while (Document.Items.Any(i => i.Rect.X == rect.X && i.Rect.Y == rect.Y))
+        {
+            rect = rect with { X = rect.X + Cascade, Y = rect.Y + Cascade };
+        }
+
+        Edit(() => Select(add(rect).Id));
+    }
+
+    [RelayCommand]
+    private void IncrementCounter() => StepSelectedCounter(1);
+
+    [RelayCommand]
+    private void DecrementCounter() => StepSelectedCounter(-1);
+
+    private void StepSelectedCounter(int delta)
+    {
+        if (SelectedItem is CounterItem counter)
+        {
+            Edit(() => _editor.StepCounter(counter.Id, delta));
+        }
+    }
+
+    [RelayCommand]
     private void ChangeBackground()
     {
         if (_dialogs.ChooseImage("Nova imagem de fundo") is not { } file)
@@ -533,6 +836,15 @@ public sealed partial class EditorViewModel : ObservableObject, IDisposable
         }
     }
 
+    [RelayCommand(CanExecute = nameof(CanUseRealSize))]
+    private void Mirror()
+    {
+        if (SelectedItem is ImageItem image)
+        {
+            Edit(() => _editor.ToggleMirror(image.Id));
+        }
+    }
+
     private bool CanUseRealSize => SelectedItem is ImageItem;
 
     /// <summary>One image pixel per monitor pixel, which keeps the small print of a cheatsheet legible.</summary>
@@ -570,17 +882,12 @@ public sealed partial class EditorViewModel : ObservableObject, IDisposable
         }
     }
 
-    /// <summary>Marking a task is the one change that also reaches the monitor at once, if the project is on one.</summary>
+    /// <summary>Like every change, marking a task only reaches the monitor through "Atualizar wallpaper".</summary>
     private void ToggleEntry(EntryRow row)
     {
-        if (SelectedItem is not ChecklistItem list)
+        if (SelectedItem is ChecklistItem list)
         {
-            return;
-        }
-
-        if (Edit(() => _editor.ToggleEntry(list.Id, row.Id)) && IsOnSelectedMonitor())
-        {
-            _ = PublishQuietlyAsync();
+            Edit(() => _editor.ToggleEntry(list.Id, row.Id));
         }
     }
 
@@ -704,6 +1011,8 @@ public sealed partial class EditorViewModel : ObservableObject, IDisposable
                 ItemFontSize = styled.Style.Size;
                 ItemTextOpacity = Math.Round(styled.Style.TextOpacity * 100);
                 ItemPanelOpacity = Math.Round(styled.Style.PanelOpacity * 100);
+                ItemPanelShape = styled.Style.Shape;
+                ItemTail = styled.Style.Tail;
                 SyncFont(styled.Style.Font);
             }
 
@@ -721,6 +1030,31 @@ public sealed partial class EditorViewModel : ObservableObject, IDisposable
 
                 case TextItem text:
                     ItemText = text.Text;
+                    ItemTextAlign = TextAlignOptions.First(o => o.Align == text.Align);
+                    ItemBold = text.Bold;
+                    ItemItalic = text.Italic;
+                    break;
+            }
+
+            if (item is ControlItem control)
+            {
+                ControlLabel = control.Label;
+            }
+
+            switch (item)
+            {
+                case CounterItem counter:
+                    CounterValue = counter.Value;
+                    break;
+
+                case ProgressItem progress:
+                    ProgressPercent = progress.Percent;
+                    break;
+
+                case ToggleItem toggle:
+                    ToggleOn = toggle.On;
+                    ToggleOnText = toggle.OnText;
+                    ToggleOffText = toggle.OffText;
                     break;
             }
         }
@@ -875,10 +1209,6 @@ public sealed partial class EditorViewModel : ObservableObject, IDisposable
         return new ItemRect((Canvas.Width - width) / 2, (Canvas.Height - height) / 2, width, height);
     }
 
-    private bool IsOnSelectedMonitor() =>
-        PublishMonitor is { } monitor
-        && _publisher.AssignmentsOf(ProjectPath).Any(a => string.Equals(a.MonitorId, monitor.Info.Id.Value, StringComparison.OrdinalIgnoreCase));
-
     private void UpdatePublishState()
     {
         if (PublishMonitor is not { } monitor)
@@ -898,8 +1228,8 @@ public sealed partial class EditorViewModel : ObservableObject, IDisposable
         PublishState = (assignment, isCurrent) switch
         {
             (null, _) => "Ainda não está neste monitor.",
-            (_, true) => "O monitor mostra a versão atual.",
-            _ => "Há alterações que o monitor ainda não mostra.",
+            (_, true) => "O wallpaper mostra a versão atual.",
+            _ => "Há alterações que o wallpaper ainda não mostra.",
         };
     }
 
@@ -940,9 +1270,9 @@ public sealed partial class EditorViewModel : ObservableObject, IDisposable
         {
             if (!_dialogs.Confirm(
                 "Imagem ilegível",
-                $"Não foi possível ler {ex.ImagePath}.\n\nPublicar sem ela? O projeto não muda, e ela continua no histórico."))
+                $"Não foi possível ler {ex.ImagePath}.\n\nAtualizar o wallpaper sem ela? O projeto não muda, e ela continua no histórico."))
             {
-                Status = "Nada foi publicado.";
+                Status = "O wallpaper não mudou.";
                 return;
             }
 
@@ -955,7 +1285,7 @@ public sealed partial class EditorViewModel : ObservableObject, IDisposable
                 "O Windows está estendendo uma única imagem por todos os monitores, e assim não há wallpaper por monitor.\n\n"
                 + "Mudar o Windows para o modo Preencher? Isso afeta os outros monitores."))
             {
-                Status = "Nada foi publicado.";
+                Status = "O wallpaper não mudou.";
                 return;
             }
 
@@ -963,7 +1293,10 @@ public sealed partial class EditorViewModel : ObservableObject, IDisposable
             await PublishRevisionAsync(monitor, revision, document, skipUnreadable: false);
         }
 
-        Status = $"Publicado em {monitor.Info.Name}.";
+        Status = $"Wallpaper atualizado em {monitor.Info.Name}.";
+
+        // A dynamic wallpaper is on screen now: the companion comes up to make it usable without the editor.
+        _companion.Sync(_publisher);
     }
 
     private Task PublishRevisionAsync(MonitorOption monitor, int revision, WallpaperDocument document, bool skipUnreadable) =>
@@ -982,6 +1315,6 @@ public sealed partial class EditorViewModel : ObservableObject, IDisposable
     private static string Describe(Exception ex) => ex switch
     {
         MonitorUnavailableException => "Este monitor não está mais conectado. O wallpaper não mudou.",
-        _ => $"Não foi possível publicar: {ex.Message}",
+        _ => $"Não foi possível atualizar o wallpaper: {ex.Message}",
     };
 }

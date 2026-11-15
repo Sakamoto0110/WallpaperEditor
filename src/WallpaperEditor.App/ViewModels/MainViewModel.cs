@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using WallpaperEditor.App.Companion;
 using WallpaperEditor.Core.Monitors;
 using WallpaperEditor.Core.Publishing;
 using WallpaperEditor.Core.Rendering;
@@ -13,7 +14,11 @@ using WallpaperEditor.Rendering;
 
 namespace WallpaperEditor.App.ViewModels;
 
-public sealed record FitOption(FitMode Mode, string Label);
+/// <summary>ToString is what a screen reader announces for the item. See <see cref="MonitorOption"/>.</summary>
+public sealed record FitOption(FitMode Mode, string Label)
+{
+    public override string ToString() => Label;
+}
 
 public sealed partial class MainViewModel : ObservableObject
 {
@@ -28,6 +33,7 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly WpfWallpaperRenderer _renderer;
     private readonly IDialogs _dialogs;
     private readonly IProjectNavigator _projects;
+    private readonly CompanionChannel _companion;
     private CancellationTokenSource? _previewCancellation;
 
     public MainViewModel(
@@ -36,8 +42,10 @@ public sealed partial class MainViewModel : ObservableObject
         WallpaperPublisher publisher,
         WpfWallpaperRenderer renderer,
         IDialogs dialogs,
-        IProjectNavigator projects)
+        IProjectNavigator projects,
+        CompanionChannel companion)
     {
+        _companion = companion;
         _monitors = monitors;
         _wallpapers = wallpapers;
         _publisher = publisher;
@@ -186,11 +194,70 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>A new project starts from what the selected monitor shows now, instead of a chosen image.</summary>
+    [ObservableProperty]
+    public partial bool EditCurrentWallpaper { get; set; }
+
     [RelayCommand]
-    private void NewProject() => _projects.NewProject(SelectedMonitor?.Info);
+    private void NewProject()
+    {
+        if (!EditCurrentWallpaper || SelectedMonitor is not { } monitor)
+        {
+            _projects.NewProject(SelectedMonitor?.Info);
+            return;
+        }
+
+        // Windows may have changed it since the screen was read.
+        UpdateFromWindows(monitor);
+
+        if (monitor.CurrentWallpaper is not { } current || !File.Exists(current))
+        {
+            if (_dialogs.Confirm(
+                "Editar wallpaper atual",
+                $"O arquivo do wallpaper de {monitor.Info.Name} não existe mais, e o app não consegue copiá-lo.\n\nEscolher outra imagem de fundo?"))
+            {
+                _projects.NewProject(monitor.Info);
+            }
+
+            return;
+        }
+
+        // A dynamic project on this monitor would come in flattened: its layers could no longer be edited.
+        if (monitor.ProjectPath is { } project && Directory.Exists(project))
+        {
+            switch (_dialogs.Choose(
+                "Editar wallpaper atual",
+                $"{monitor.Info.Name} mostra o projeto \"{Path.GetFileName(project)}\". Um projeto novo a partir dele "
+                + "teria as camadas achatadas no fundo, sem poder editá-las.\n\nAbrir o projeto existente?",
+                "Abrir o projeto",
+                "Criar mesmo assim",
+                "Cancelar"))
+            {
+                case 0:
+                    _projects.OpenProject(project);
+                    return;
+                case 1:
+                    break;
+                default:
+                    return;
+            }
+        }
+
+        _projects.NewProject(monitor.Info, current);
+    }
 
     [RelayCommand]
     private void OpenProject() => _projects.OpenProject();
+
+    /// <summary>Opens the companion's window for the selected monitor, where only the components respond.</summary>
+    [RelayCommand]
+    private void Interact()
+    {
+        if (SelectedMonitor is { HasProject: true } monitor)
+        {
+            _companion.Interact(monitor.Info.Id);
+        }
+    }
 
     [RelayCommand]
     private void EditMonitorProject()
@@ -252,6 +319,9 @@ public sealed partial class MainViewModel : ObservableObject
         UpdateFromWindows(monitor);
         _ = LoadThumbnailAsync(monitor);
         Status = $"Aplicado em {monitor.Info.Name}.";
+
+        // An image may have replaced the last dynamic wallpaper, and the companion has nothing left to do.
+        _companion.Sync(_publisher);
     }
 
     private async Task TryAsync(Func<Task> action)
@@ -278,12 +348,14 @@ public sealed partial class MainViewModel : ObservableObject
 
         try
         {
-            _publisher.RestoreOriginal(monitor.Info.Id);
+            var fromCopy = _publisher.RestoreOriginal(monitor.Info.Id);
             monitor.SourcePath = null;
             monitor.Fit = FitMode.Fill;
             UpdateFromWindows(monitor);
             _ = LoadThumbnailAsync(monitor);
-            Status = $"Wallpaper original de volta em {monitor.Info.Name}.";
+            Status = fromCopy
+                ? $"Wallpaper original de volta em {monitor.Info.Name}, pela cópia guardada pelo app: o arquivo original não existe mais."
+                : $"Wallpaper original de volta em {monitor.Info.Name}.";
         }
         catch (Exception ex) when (IsExpected(ex))
         {
@@ -292,6 +364,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         RestoreCommand.NotifyCanExecuteChanged();
         UpdateWarning();
+        _companion.Sync(_publisher);
     }
 
     private void UpdateFromWindows(MonitorViewModel monitor)

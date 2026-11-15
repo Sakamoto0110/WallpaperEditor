@@ -4,12 +4,14 @@
         xmlns:vm="clr-namespace:WallpaperEditor.App.ViewModels"
         xmlns:views="clr-namespace:WallpaperEditor.App.Views"
         Title="WallpaperEditor"
+        AutomationProperties.Name="WallpaperEditor"
         Width="1180"
-        Height="780"
+        Height="840"
         MinWidth="860"
         MinHeight="600"
         Icon="assets/neko-purple-light.ico"
         Loaded="Window_Loaded"
+        Closing="Window_Closing"
         Closed="Window_Closed"
         WindowStartupLocation="CenterScreen">
     <Window.Resources>

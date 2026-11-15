@@ -10,6 +10,11 @@ Por isso:
 - Static e Dynamic terminam da mesma forma: uma imagem plana, entregue ao Windows. Nenhum dos dois deixa
   processo rodando.
 - Animated é outro mundo, em outro processo, que pode ser removido sem afetar os demais.
+- O **companion** é o próprio App com `--companion`, em outro processo: um ícone na área de notificação e uma janela
+  onde só os componentes de um wallpaper dinâmico respondem. Ele não mantém o wallpaper, que continua sendo uma imagem
+  do Windows; só torna o uso rápido. Vive enquanto algum monitor mostra um projeto
+  ([ADR 0007](adr/0007-companion-residente.md)). O código está em `App/Companion`, e a janela reaproveita o desenho do
+  editor (`Views/DocumentViews.cs`).
 
 ## Projetos
 
@@ -80,7 +85,7 @@ sequenceDiagram
     A->>R: Renderizar documento em 1080x1920
     R-->>A: PNG em pasta temporária
     A->>A: Mover para published/ com nome novo
-    A->>A: Salvar o wallpaper original, se for a primeira vez
+    A->>A: Salvar e copiar o wallpaper original, se for a primeira vez
     A->>P: SetWallpaper(monitor, arquivo)
     P->>W: IDesktopWallpaper::SetWallpaper
     W-->>P: OK
@@ -117,13 +122,16 @@ stateDiagram-v2
 ```
 
 - **Salvar é automático.** Toda ação concluída vira uma revisão, e não existe "salvar" nem alteração perdida.
-- **Publicar é explícito, exceto ao marcar uma tarefa,** que já faz a troca (Q3 da
-  [visão do produto](01-visao-do-produto.md#perguntas-em-aberto)). Nos outros casos, o head pode estar à frente
-  do que está no monitor, e a tela mostra essa diferença de forma visível.
+- **Publicar é sempre explícito:** na tela, é o botão **Atualizar wallpaper** (Q3 da
+  [visão do produto](01-visao-do-produto.md#resolvidas)). Até lá, o head pode estar à frente do que está no monitor,
+  e a tela mostra essa diferença de forma visível.
 - **O histórico mostra as mudanças em texto,** como "Adicionou a checklist Hoje" ou "Marcou a tarefa", com uma
   miniatura da revisão selecionada, gerada na hora.
-- **Marcações rápidas se juntam.** `CoalescingRunner` faz uma publicação de cada vez; pedidos feitos durante uma
-  delas viram uma só no final, que sempre inclui o último clique.
+- **Sair pergunta, só se fizer diferença.** Fechar a janela, ou voltar a Monitores, depois de mudar algo que o monitor
+  ainda não mostra pergunta: atualizar e sair, sair sem atualizar, ou cancelar. Abrir e fechar sem mudar nada não
+  pergunta. O projeto nunca se perde nesse caso, porque já está salvo; o que se perderia é só a atualização do wallpaper.
+- **Cliques repetidos se juntam.** `CoalescingRunner` faz uma publicação de cada vez; pedidos feitos durante uma
+  delas viram uma só no final, que sempre publica o head daquele momento.
 
 ## Fluxo: modo animado
 
@@ -160,15 +168,25 @@ Duas categorias, separadas de propósito:
 ├─ state.json          atribuições e wallpapers originais
 ├─ published\
 │  └─ <hash-do-monitor>\
-│     └─ <id-único>.png
+│     ├─ <id-único>.png
+│     └─ original\
+│        └─ <nome do arquivo original>   cópia do wallpaper de antes do app
 └─ logs\
 ```
 
 Os arquivos ficam em `published\`, e não na pasta do projeto, para que mover ou apagar um projeto não quebre o
 que está na tela.
 
-Na primeira vez que o app toca em um monitor, o `state.json` guarda o wallpaper que estava lá. Isso permite o
-comando "restaurar original".
+Na primeira vez que o app toca em um monitor, o `state.json` guarda o caminho do wallpaper que estava lá, e o app
+**copia o arquivo** para `original\`, antes da troca. Isso permite o comando "restaurar original":
+
+- **O arquivo original vem primeiro,** se ainda existir no lugar: é o arquivo que o usuário escolheu. A cópia, que não
+  foi necessária, é apagada.
+- **A cópia entra se o original sumiu** (movido ou apagado), e a tela avisa. Ela fica, porque passou a ser o wallpaper.
+- **Um wallpaper trocado fora do app vira o novo original,** e a cópia é substituída.
+- **Sem cópia, a troca acontece mesmo assim.** Se o original não puder ser lido ou copiado, vale só o caminho, como antes.
+
+A limpeza dos arquivos publicados nunca entra em `original\`.
 
 Ao abrir, o app volta direto ao último projeto usado, já que a abertura é o caminho normal para fazer uma
 pequena alteração.
@@ -182,11 +200,25 @@ pequena alteração.
   editor é o que será publicado.
 - **Arrastar não recompõe nada.** Em `EditorSurface`, cada item é um elemento próprio. Um arrasto só muda a posição
   dele, e o documento só muda ao soltar, gerando uma única revisão.
-- **Manipulação:** as alças de redimensionar e girar ficam em uma camada à parte, e não fazem parte da imagem. A
-  matemática de itens girados fica em `ItemGeometry`, no Core, onde pode ser testada.
+- **Manipulação:** as alças ficam em uma camada à parte, e não fazem parte da imagem. Os cantos (redondos) mudam
+  largura e altura, mantendo a proporção de uma imagem, a menos que Shift esteja pressionado; os lados (quadrados)
+  mudam só uma dimensão, e o lado oposto fica parado; a alça de cima gira. A matemática de itens girados fica em
+  `ItemGeometry`, no Core, onde pode ser testada.
 - **Lista de itens:** alcança um item escondido atrás de outro, e funciona sem mouse.
+- **Componentes clicáveis na pré-visualização.** O mesmo código que desenha checklist, contador, barra e alternância
+  informa onde cada um pode ser clicado (`StyledItemPainter.Hotspots`, em coordenadas do item). A superfície leva o
+  clique para essas coordenadas, mesmo com o item girado (`ItemGeometry.ToLocal`), então o clique cai onde parece.
+  Um clique parado age no componente, e um arrasto move o item; na barra, arrastar ajusta a porcentagem. Os botões do
+  contador são desenhados só no editor, em um espaço que existe nos dois casos, para nada mudar de lugar ao publicar.
 - **Checkboxes por binding, não por comando,** porque o UI Automation, usado por leitores de tela, não dispara o
   comando de um checkbox.
+- **Nomes para leitores de tela.** As opções de listas sobrescrevem `ToString`, que é o que o UI Automation anuncia
+  em um item exibido por `DisplayMemberPath`, e a janela tem nome próprio. Sem isso, um leitor de tela leria nomes de
+  tipos do código, como `PanelShapeOption { Shape = Thought, … }`.
+- **Formatos de painel.** O balão de pensamento é uma elipse com ondulações espaçadas por distância ao longo do
+  contorno; o conteúdo fica no maior retângulo dentro dela, centralizado na altura da nuvem, e um texto livre tem as
+  linhas centralizadas. As partes de um balão são desenhadas em uma única camada de
+  opacidade, para a sobreposição não ficar mais escura.
 - **DPI:** o manifesto declara `PerMonitorV2`. Sem isso, os retângulos dos monitores vêm virtualizados, e as
   imagens seriam geradas no tamanho errado.
 - **Renderização final** roda em uma thread STA dedicada, fora da thread de UI.

@@ -193,15 +193,122 @@ public sealed class WallpaperPublisherTests : IDisposable
     }
 
     [Fact]
-    public async Task Restoring_when_the_original_file_is_gone_keeps_the_current_wallpaper()
+    public async Task A_copy_of_the_original_is_kept_before_the_wallpaper_changes()
+    {
+        string? copyAtTheMomentOfTheChange = null;
+        _windows.BeforeSet = () => copyAtTheMomentOfTheChange = _store.Load().Monitors[Vertical.Id.Value].OriginalCopy;
+
+        var assignment = await _publisher.PublishAsync(Vertical.Id, _source, FitMode.Fill);
+
+        Assert.NotNull(copyAtTheMomentOfTheChange);
+        Assert.Equal(assignment.OriginalCopy, copyAtTheMomentOfTheChange);
+        Assert.Equal(File.ReadAllText(_original), File.ReadAllText(assignment.OriginalCopy!));
+        Assert.NotEqual(_original, assignment.OriginalCopy);
+    }
+
+    [Fact]
+    public async Task Publishing_many_times_keeps_the_copy_of_the_original()
+    {
+        MonitorAssignment last = null!;
+        for (var i = 0; i < 4; i++)
+        {
+            last = await _publisher.PublishAsync(Vertical.Id, _source, FitMode.Fill);
+        }
+
+        Assert.True(File.Exists(last.OriginalCopy), "Cleaning up published files must not reach the copy.");
+    }
+
+    [Fact]
+    public async Task Restoring_when_the_original_file_is_gone_uses_the_copy()
     {
         var assignment = await _publisher.PublishAsync(Vertical.Id, _source, FitMode.Fill);
         File.Delete(_original);
+
+        var fromCopy = _publisher.RestoreOriginal(Vertical.Id);
+
+        Assert.True(fromCopy);
+        Assert.Equal(assignment.OriginalCopy, _windows.Wallpapers[Vertical.Id]);
+        Assert.True(File.Exists(assignment.OriginalCopy), "The copy is on screen now, and must stay.");
+        Assert.Null(_publisher.GetAssignment(Vertical.Id));
+    }
+
+    [Fact]
+    public async Task Restoring_prefers_the_original_file_and_drops_the_unneeded_copy()
+    {
+        var assignment = await _publisher.PublishAsync(Vertical.Id, _source, FitMode.Fill);
+
+        var fromCopy = _publisher.RestoreOriginal(Vertical.Id);
+
+        Assert.False(fromCopy);
+        Assert.Equal(_original, _windows.Wallpapers[Vertical.Id]);
+        Assert.False(File.Exists(assignment.OriginalCopy));
+    }
+
+    [Fact]
+    public async Task Restoring_when_both_the_original_and_the_copy_are_gone_keeps_the_current_wallpaper()
+    {
+        var assignment = await _publisher.PublishAsync(Vertical.Id, _source, FitMode.Fill);
+        File.Delete(_original);
+        File.Delete(assignment.OriginalCopy!);
 
         Assert.Throws<OriginalWallpaperUnavailableException>(() => _publisher.RestoreOriginal(Vertical.Id));
 
         Assert.Equal(assignment.PublishedFile, _windows.Wallpapers[Vertical.Id]);
         Assert.NotNull(_publisher.GetAssignment(Vertical.Id));
+    }
+
+    [Fact]
+    public async Task Publishing_again_after_restoring_from_the_copy_keeps_it()
+    {
+        await _publisher.PublishAsync(Vertical.Id, _source, FitMode.Fill);
+        File.Delete(_original);
+        _publisher.RestoreOriginal(Vertical.Id);
+        var copy = _windows.Wallpapers[Vertical.Id];
+
+        var again = await _publisher.PublishAsync(Vertical.Id, _source, FitMode.Fill);
+
+        // The copy is now the original. Copying it onto itself must not destroy it.
+        Assert.Equal(copy, again.OriginalWallpaper);
+        Assert.True(File.Exists(copy));
+    }
+
+    [Fact]
+    public async Task A_new_original_replaces_the_old_copy()
+    {
+        var first = await _publisher.PublishAsync(Vertical.Id, _source, FitMode.Fill);
+        var chosenInSettings = Touch("settings.jpg");
+        _windows.Wallpapers[Vertical.Id] = chosenInSettings;
+
+        var second = await _publisher.PublishAsync(Vertical.Id, _source, FitMode.Fill);
+
+        Assert.Equal("settings.jpg", File.ReadAllText(second.OriginalCopy!));
+        Assert.False(File.Exists(first.OriginalCopy));
+    }
+
+    [Fact]
+    public async Task A_state_from_before_copies_were_kept_gets_one_on_the_next_publish()
+    {
+        var first = await _publisher.PublishAsync(Vertical.Id, _source, FitMode.Fill);
+        var state = _store.Load();
+        File.Delete(first.OriginalCopy!);
+        state.Monitors[Vertical.Id.Value] = first with { OriginalCopy = null };
+        _store.Save(state);
+
+        var second = await _publisher.PublishAsync(Vertical.Id, _source, FitMode.Fill);
+
+        Assert.NotNull(second.OriginalCopy);
+        Assert.True(File.Exists(second.OriginalCopy));
+    }
+
+    [Fact]
+    public async Task An_original_that_cannot_be_read_does_not_stop_publishing()
+    {
+        File.Delete(_original);
+
+        var assignment = await _publisher.PublishAsync(Vertical.Id, _source, FitMode.Fill);
+
+        Assert.Null(assignment.OriginalCopy);
+        Assert.Equal(assignment.PublishedFile, _windows.Wallpapers[Vertical.Id]);
     }
 
     [Fact]
@@ -325,6 +432,42 @@ public sealed class WallpaperPublisherTests : IDisposable
         Assert.Single(Directory.GetFiles(_root, "state.json.*.unreadable"));
     }
 
+    [Fact]
+    public async Task A_published_project_is_shown_until_something_replaces_it()
+    {
+        Assert.Empty(_publisher.ShownProjects());
+
+        await PublishProject(Path.Combine(_root, "Projeto"), 3);
+        var shown = Assert.Single(_publisher.ShownProjects());
+        Assert.Equal(Vertical.Id.Value, shown.MonitorId);
+
+        // Changed in the Windows settings, out of the app's sight.
+        _windows.Wallpapers[Vertical.Id] = _source;
+        Assert.Empty(_publisher.ShownProjects());
+    }
+
+    [Fact]
+    public async Task A_static_image_or_a_restore_leaves_no_project_shown()
+    {
+        await PublishProject(Path.Combine(_root, "Projeto"), 3);
+        await _publisher.PublishAsync(Vertical.Id, _source, FitMode.Fill);
+        Assert.Empty(_publisher.ShownProjects());
+
+        await PublishProject(Path.Combine(_root, "Projeto"), 4);
+        _publisher.RestoreOriginal(Vertical.Id);
+        Assert.Empty(_publisher.ShownProjects());
+    }
+
+    [Fact]
+    public void A_project_on_a_monitor_that_is_not_attached_is_not_shown()
+    {
+        var state = new AppState();
+        state.Monitors["unplugged"] = new MonitorAssignment { MonitorId = "unplugged", ProjectPath = @"C:\p", PublishedFile = @"C:\f.png" };
+        _store.Save(state);
+
+        Assert.Empty(_publisher.ShownProjects());
+    }
+
     private Task<MonitorAssignment> PublishProject(string project, int revision)
     {
         var document = new WallpaperDocument(new BackgroundSpec(new AssetRef("a.png", "a.png"), FitMode.Fill), []);
@@ -338,10 +481,13 @@ public sealed class WallpaperPublisherTests : IDisposable
         return path;
     }
 
+    /// <summary>The images handed to Windows, leaving out the copies of originals kept beside them.</summary>
     private string[] PublishedFiles()
     {
         var published = Path.Combine(_root, "published");
-        return Directory.Exists(published) ? Directory.GetFiles(published, "*", SearchOption.AllDirectories) : [];
+        return Directory.Exists(published)
+            ? [.. Directory.GetFiles(published, "*", SearchOption.AllDirectories).Where(f => Path.GetFileName(Path.GetDirectoryName(f)) != "original")]
+            : [];
     }
 
     private sealed class FakeRenderer : IWallpaperRenderer

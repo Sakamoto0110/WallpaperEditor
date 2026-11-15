@@ -134,9 +134,15 @@ Os itens são desenhados **na ordem da lista**: o último fica por cima.
 
 | `type` | Serve para | Campos próprios |
 |---|---|---|
-| `image` | Cheatsheets e qualquer imagem adicionada à composição | `source`, `opacity` |
+| `image` | Cheatsheets e qualquer imagem adicionada à composição | `source`, `opacity`, `mirrored` |
 | `checklist` | Listas de tarefas | `title`, `entries`, `style` |
-| `text` | Texto livre, com várias linhas | `text`, `style` |
+| `text` | Texto livre, com várias linhas | `text`, `align`, `bold`, `italic`, `style` |
+| `counter` | Um número inteiro com rótulo | `label`, `value`, `style` |
+| `progress` | Uma porcentagem de 0 a 100, com rótulo | `label`, `percent`, `style` |
+| `toggle` | Dois estados, cada um com seu texto | `label`, `on`, `onText`, `offText`, `style` |
+
+Os três últimos são **controles**: o valor deles muda com um clique no editor, e o PNG mostra só o valor. Nada no
+arquivo guarda os botões do editor.
 
 Todos têm `id`, `rect` (em pixels do canvas) e `rotation` (em graus). Conteúdo maior que `rect` é recortado.
 
@@ -144,12 +150,21 @@ Reduzir um cheatsheet pode torná-lo ilegível, e por isso o editor oferece o ta
 reduzir. Um `rect` do mesmo tamanho do arquivo mantém a imagem pixel a pixel.
 
 Em `text`, as quebras de linha são sempre `\n`, e o texto não pode ficar vazio: para tirá-lo, remove-se a camada.
-Checklist e texto crescem sozinhos, na mesma revisão, quando o conteúdo deixa de caber, mas nunca encolhem sozinhos.
+`align` é `left`, `center`, `right` ou `justify`; ausente, é automático: centralizado em um balão de pensamento e à
+esquerda nos outros painéis. `bold` e `italic` valem para o texto inteiro da camada, já que texto formatado por palavra
+está fora do escopo.
+Tudo o que é feito de texto cresce sozinho, na mesma revisão, quando o conteúdo deixa de caber, mas nunca encolhe
+sozinho. Em `toggle`, nenhum dos dois textos pode ficar vazio.
 
 As fontes de `style` são referenciadas pelo nome e vêm do sistema; se faltar uma, o app avisa e usa uma alternativa.
 
 As cores são `#RRGGBB` ou `#AARRGGBB`. A opacidade do texto e a do painel são o alfa de `color` e de `panel`, sem
 campos separados, para que a transparência tenha uma única fonte.
+
+Em `style`, `shape` é o formato do painel (`rounded`, `speech` ou `thought`) e `tail` o lado da ponta de um balão
+(`left` ou `right`). Projetos salvos antes desses campos abrem com painel arredondado.
+
+Em `image`, `mirrored` espelha a imagem da esquerda para a direita, antes de girar.
 
 ### `change`
 
@@ -161,11 +176,13 @@ Descrição da mudança, usada na tela de histórico:
 | `item-added` / `item-removed` | Item adicionado ou removido |
 | `item-edited` | Item movido, redimensionado, reordenado ou alterado |
 | `checklist-entry-added` / `-removed` / `-toggled` / `-edited` | Mudança em uma tarefa |
+| `value-changed` | Valor de um contador, barra ou alternância |
 | `background-changed` | Troca do fundo |
 | `reverted` | Reversão; inclui `target`, o número da revisão restaurada |
 | `item-restored` | Item trazido de uma revisão antiga; inclui `fromRevision` |
 
-Uma revisão nasce ao **concluir** uma ação: soltar o mouse ao arrastar um item, e não a cada pixel movido.
+Uma revisão nasce ao **concluir** uma ação: soltar o mouse ao arrastar um item ou a barra de progresso, e não a cada
+pixel movido. Cada clique em − ou + é uma revisão.
 
 ## Como o histórico funciona
 

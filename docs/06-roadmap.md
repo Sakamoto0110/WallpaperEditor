@@ -67,10 +67,17 @@ Windows real.
 
 ## Fase 4 — Dynamic (implementada, em conferência)
 
-**Falta o usuário testar:** arrastar, redimensionar e girar itens com o mouse, e criar um projeto novo com os
-diálogos de arquivo. O resto foi exercitado de verdade: por 192 testes automatizados e, na tela, por UI Automation
+**Testado pelo usuário em 2026-11-15:** clicar nos componentes na pré-visualização, arrastar e redimensionar,
+publicar uma checklist sobre uma foto em um monitor de verdade, balões de fala e de pensamento, espelhar uma imagem, e
+a pergunta ao sair.
+
+**Falta testar:** "Atualizar e sair" ao fechar, e criar um projeto novo com os diálogos de arquivo, conferido só
+indiretamente; e as alças nos lados, só por testes da geometria. O resto foi exercitado de verdade: por 257 testes
+automatizados (incluindo onde cada componente pode ser clicado, também com o item girado) e, na tela, por UI Automation
 (selecionar itens, publicar, marcar tarefas, remover, restaurar um item, reverter, trocar a fonte, mudar as
-opacidades e criar e editar texto). Esses passos não usaram o mouse nem os diálogos de arquivo. A publicação real foi só no monitor vertical. Mudar um projeto para outro formato de
+opacidades, criar e editar texto, criar e mudar contador, barra e alternância pelo painel, e criar um projeto a partir do
+wallpaper atual, cujo fundo saiu idêntico ao arquivo do monitor). Esses passos não usaram o
+mouse nem os diálogos de arquivo. A publicação real foi só no monitor vertical. Mudar um projeto para outro formato de
 monitor só foi testado no `Rendering`.
 
 Em duas etapas, com o motor primeiro:
@@ -85,6 +92,7 @@ Em duas etapas, com o motor primeiro:
 
 **4b — Editor**
 - Abrir e criar projeto; reabrir o último usado
+- Criar um projeto a partir do wallpaper atual do monitor (**Editar wallpaper atual**), com uma cópia dele como fundo
 - Adicionar, mover, redimensionar, girar e reordenar itens
 - Opção de tamanho real (100%) para imagens, com aviso ao reduzir, para cheatsheets continuarem legíveis
 - Editar checklist: adicionar, remover e marcar tarefas
@@ -92,12 +100,30 @@ Em duas etapas, com o motor primeiro:
 - Fonte, tamanho e opacidade do texto e do painel, em checklists e textos
 - Painel de histórico, com a descrição de cada mudança e miniaturas
 - Lista de itens, para alcançar um item escondido atrás de outro e usar sem mouse
-- Publicar em um monitor, mostrando quando o head está à frente do que foi publicado; marcar uma tarefa publica
-  sozinho, se o projeto já estiver naquele monitor
+- Publicar em um monitor pelo botão **Atualizar wallpaper**, mostrando quando o head está à frente do que foi publicado
+- Contador, barra de progresso e alternância
+- Painel arredondado, balão de fala ou balão de pensamento; espelhar imagens
+- Alças nos lados, para mudar só a largura ou só a altura
+- Alinhamento, negrito e itálico no texto livre
+- Perguntar ao sair, se houver mudanças que o wallpaper ainda não mostra
+- Componentes clicáveis na pré-visualização: tarefas, − e + do contador, barra arrastável e alternância
+- Companion ([ADR 0007](adr/0007-companion-residente.md)): ícone na área de notificação e janela de interação, aberta
+  também pelo botão **Interagir**, em que cada clique atualiza o wallpaper; inicia com o Windows só enquanto houver
+  um wallpaper dinâmico na tela
 
 **Concluída quando** for possível, nos 3 exemplos de uso (cheatsheet, checklist, imagens):
 criar um projeto, publicar, alterar, publicar de novo, reverter, restaurar um item removido, fechar, mover a
-pasta e reabrir com tudo intacto. Com o app fechado, nenhum processo fica rodando.
+pasta e reabrir com tudo intacto. Com o app fechado, nenhum processo fica rodando além do companion, e ele sai quando
+nenhum monitor mostra um projeto.
+
+**Companion, testado sem clicar** (um clique trocaria um wallpaper real): abre a janela do projeto do monitor, um
+segundo pedido reaproveita a mesma janela e o processo extra termina, o projeto fica preso só com a janela aberta, e
+`exit` pelo pipe encerra tudo.
+
+**Testado pelo usuário em 2026-11-15:** clicar nos componentes pela janela do companion, com o wallpaper trocando a cada
+clique; o ícone, o menu e a dica; e o wallpaper publicado continuando na tela depois de reiniciar o computador, já que é
+só uma imagem do Windows. Depois, com os dados reais (sem `--data`), o companion se registrou ao abrir o app e voltou
+sozinho depois de reiniciar, com as mudanças feitas por ele.
 
 ## Fase 5 — Experimento do modo animado (em andamento)
 

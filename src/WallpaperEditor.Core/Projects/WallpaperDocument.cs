@@ -26,6 +26,9 @@ public readonly record struct ItemRect(double X, double Y, double Width, double 
 [JsonDerivedType(typeof(ImageItem), "image")]
 [JsonDerivedType(typeof(ChecklistItem), "checklist")]
 [JsonDerivedType(typeof(TextItem), "text")]
+[JsonDerivedType(typeof(CounterItem), "counter")]
+[JsonDerivedType(typeof(ProgressItem), "progress")]
+[JsonDerivedType(typeof(ToggleItem), "toggle")]
 public abstract record DocumentItem
 {
     public required string Id { get; init; }
@@ -43,6 +46,9 @@ public sealed record ImageItem : DocumentItem
     public required AssetRef Source { get; init; }
 
     public double Opacity { get; init; } = 1;
+
+    /// <summary>Flipped left to right, before the rotation is applied.</summary>
+    public bool Mirrored { get; init; }
 }
 
 /// <summary>An item made of text on a panel, which shares its look with every other such item.</summary>
@@ -65,6 +71,14 @@ public sealed record TextItem : StyledItem
 
     public required string Text { get; init; }
 
+    /// <summary>Null is automatic: centered in a thought balloon, on the left anywhere else.</summary>
+    public TextAlign? Align { get; init; }
+
+    /// <summary>The whole text, not a word at a time: formatted text is out of scope.</summary>
+    public bool Bold { get; init; }
+
+    public bool Italic { get; init; }
+
     public static string Normalize(string text)
     {
         ArgumentNullException.ThrowIfNull(text);
@@ -82,12 +96,53 @@ public sealed record TextItem : StyledItem
 public sealed record ChecklistEntry(string Id, string Text, bool Done);
 
 /// <summary>
+/// A value the user changes by clicking in the editor, such as a counter. On the wallpaper it is only a picture of
+/// that value: what makes it interactive is the editor, never the desktop.
+/// </summary>
+public abstract record ControlItem : StyledItem
+{
+    /// <summary>Shown above the value. May be empty.</summary>
+    public string Label { get; init; } = string.Empty;
+}
+
+/// <summary>A whole number, changed one step at a time.</summary>
+public sealed record CounterItem : ControlItem
+{
+    public int Value { get; init; }
+}
+
+/// <summary>A bar filled from 0 to 100 percent.</summary>
+public sealed record ProgressItem : ControlItem
+{
+    public int Percent { get; init; }
+}
+
+/// <summary>A switch with two states, each with its own text, such as "Foco" and "Livre".</summary>
+public sealed record ToggleItem : ControlItem
+{
+    public bool On { get; init; }
+
+    public string OnText { get; init; } = "Ligado";
+
+    public string OffText { get; init; } = "Desligado";
+
+    [JsonIgnore]
+    public string StateText => On ? OnText : OffText;
+}
+
+/// <summary>
 /// How text on a panel looks. Colors are <c>#RRGGBB</c> or <c>#AARRGGBB</c>, and the alpha is what the opacity
 /// controls change, so there is one source of truth for transparency.
 /// </summary>
 public sealed record TextStyle(string Font, double Size, string Color, string Panel)
 {
     public static readonly TextStyle Default = new("Segoe UI", 22, "#FFFFFF", "#BE101218");
+
+    /// <summary>The outline of the panel. Projects saved before shapes existed read as rounded.</summary>
+    public PanelShape Shape { get; init; } = PanelShape.Rounded;
+
+    /// <summary>Which way a bubble's tail points. Ignored by the rounded panel.</summary>
+    public TailSide Tail { get; init; } = TailSide.Left;
 
     [JsonIgnore]
     public double TextOpacity => ColorAlpha.Of(Color);
@@ -98,6 +153,36 @@ public sealed record TextStyle(string Font, double Size, string Color, string Pa
     public TextStyle WithTextOpacity(double opacity) => this with { Color = ColorAlpha.With(Color, opacity) };
 
     public TextStyle WithPanelOpacity(double opacity) => this with { Panel = ColorAlpha.With(Panel, opacity) };
+}
+
+/// <summary>How the lines of a text sit across its width.</summary>
+public enum TextAlign
+{
+    Left,
+    Center,
+    Right,
+
+    /// <summary>Every line but the last stretched to the full width.</summary>
+    Justify,
+}
+
+public enum PanelShape
+{
+    /// <summary>A rectangle with rounded corners.</summary>
+    Rounded,
+
+    /// <summary>A speech balloon, with a pointed tail below.</summary>
+    Speech,
+
+    /// <summary>A thought balloon: a cloud, with small circles trailing below.</summary>
+    Thought,
+}
+
+/// <summary>Toward which bottom corner a balloon's tail goes, to point at whoever is "speaking".</summary>
+public enum TailSide
+{
+    Left,
+    Right,
 }
 
 /// <summary>Reads and changes the alpha of a color written as <c>#RRGGBB</c> or <c>#AARRGGBB</c>.</summary>
@@ -161,6 +246,9 @@ public static class ChangeKinds
     public const string EntryRemoved = "checklist-entry-removed";
     public const string EntryToggled = "checklist-entry-toggled";
     public const string EntryEdited = "checklist-entry-edited";
+
+    /// <summary>A counter, a progress bar or a switch changed its value.</summary>
+    public const string ValueChanged = "value-changed";
     public const string BackgroundChanged = "background-changed";
     public const string Reverted = "reverted";
 }

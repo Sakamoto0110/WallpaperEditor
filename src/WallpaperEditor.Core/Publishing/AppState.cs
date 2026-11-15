@@ -27,6 +27,12 @@ public sealed record MonitorAssignment
     /// <summary>The wallpaper the monitor had before the app first touched it.</summary>
     public string? OriginalWallpaper { get; init; }
 
+    /// <summary>
+    /// A copy of that file, kept in the app's own folder, so restoring still works if the original is moved or
+    /// deleted. Null if it could not be copied, or for a state saved before the app kept copies.
+    /// </summary>
+    public string? OriginalCopy { get; init; }
+
     /// <summary>The image the user chose, for a static wallpaper. Null for a project.</summary>
     public string? SourcePath { get; init; }
 
@@ -89,7 +95,8 @@ public sealed class AppStateStore(string path)
         ArgumentNullException.ThrowIfNull(state);
 
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        var temporary = $"{path}.tmp";
+        // Unique, since the companion process may save at the same moment as the app.
+        var temporary = $"{path}.{Guid.NewGuid():N}.tmp";
         File.WriteAllText(temporary, JsonSerializer.Serialize(state, Options));
         File.Move(temporary, path, overwrite: true);
     }

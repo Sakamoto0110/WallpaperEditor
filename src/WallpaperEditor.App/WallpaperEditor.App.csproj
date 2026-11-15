@@ -4,6 +4,8 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
+    <!-- Only for the companion's icon in the notification area, which WPF does not have. -->
+    <UseWindowsForms>true</UseWindowsForms>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>assets\neko-purple-light.ico</ApplicationIcon>
     <RootNamespace>WallpaperEditor.App</RootNamespace>
@@ -13,6 +15,12 @@
 
   <ItemGroup>
     <Resource Include="assets\neko-purple-light.ico" />
+  </ItemGroup>
+
+  <!-- WPF types keep their plain names; the one file that needs Windows Forms says so. -->
+  <ItemGroup>
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
   </ItemGroup>
 
   <ItemGroup>

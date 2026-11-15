@@ -4,11 +4,13 @@ Aplicativo Windows para definir e **editar** o wallpaper de **um monitor especí
 afetar os outros.
 
 **Extremamente leve, e não um Wallpaper Engine:** o Windows recebe uma imagem estática comum, e com
-o app fechado nada fica rodando. O wallpaper só muda pelo app.
+o app fechado nada fica rodando, a não ser o pequeno **companion** enquanto houver um wallpaper dinâmico na tela, para
+usá-lo sem abrir o editor. O wallpaper só muda pelo app.
 
-> **Status: Fase 4 em conferência, Fase 5 em andamento.** Static e Dynamic funcionam: o editor compõe imagens, checklists
-> e texto, com histórico para reverter, e publica em um monitor. Animated existe só como experimento: o `AnimatedHost`
-> roda por linha de comando, fora da interface, para medir o custo. O estado de cada fase, e o que falta testar, está em
+> **Status: Fase 4 em conferência, Fase 5 em andamento.** Static e Dynamic funcionam: o editor compõe imagens,
+> checklists, texto e componentes clicáveis (contador, barra de progresso, alternância), com histórico para reverter, e
+> publica em um monitor. Animated existe só como experimento: o `AnimatedHost` roda por linha de comando, fora da
+> interface, para medir o custo. O estado de cada fase, e o que falta testar, está em
 > [docs/06-roadmap.md](docs/06-roadmap.md).
 
 ## Compilar e testar
@@ -30,7 +32,7 @@ dotnet run --project src/WallpaperEditor.App
 | Tipo | O que é | Precisa de processo rodando? |
 |---|---|---|
 | **Static** | Uma imagem, ajustada ao monitor escolhido | Não |
-| **Dynamic** | Uma composição de camadas (imagens como cheatsheets de uma linguagem, checklists e texto), com pasta de projeto, arquivos-fonte e histórico. A saída é um PNG plano e irreversível; o **registro de alterações** é o que permite reverter e recompor | Não |
+| **Dynamic** | Uma composição de camadas (imagens como cheatsheets de uma linguagem, checklists, texto, contadores, barras de progresso e alternâncias), com pasta de projeto, arquivos-fonte e histórico. Os componentes são clicáveis na pré-visualização do app, e o wallpaper só muda em **Atualizar wallpaper**. Fora do editor, o companion abre o wallpaper numa janela onde cada clique o atualiza na hora. A saída é um PNG plano e irreversível; o **registro de alterações** é o que permite reverter e recompor | Só o companion, opcional para o wallpaper continuar na tela |
 | **Animated** | Um vídeo `.mp4` em loop. **Experimental:** existe para descobrir quanta VRAM isso consome | Sim |
 
 ## Documentação
@@ -56,6 +58,7 @@ Leia na ordem se estiver chegando agora:
 | [0004](docs/adr/0004-composicao-recriavel.md) | Saída irreversível, projeto recriável por registro de alterações |
 | [0005](docs/adr/0005-renderizacao-com-wpf.md) | Renderização com WPF, sem biblioteca de imagem externa |
 | [0006](docs/adr/0006-reproducao-de-video.md) | `MediaPlayer` do Windows + DirectComposition no modo animado |
+| [0007](docs/adr/0007-companion-residente.md) | Um companion residente enquanto houver um wallpaper dinâmico |
 
 ### Como ler o grau de certeza
 

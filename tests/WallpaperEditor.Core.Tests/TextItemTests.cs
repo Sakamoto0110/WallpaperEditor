@@ -158,6 +158,47 @@ public sealed class TextItemTests : IDisposable
         Assert.NotNull(Reopen().Find<ChecklistItem>(list.Id));
     }
 
+    [Fact]
+    public void Alignment_bold_and_italic_are_saved_and_described()
+    {
+        var editor = NewEditor();
+        var item = editor.AddText("Atalhos", SomeRect);
+        Assert.Null(item.Align);
+
+        editor.SetTextAlign(item.Id, TextAlign.Right);
+        var align = editor.Project.ReadRevision(editor.Project.Head).Change.Label;
+        editor.SetTextBold(item.Id, true);
+        var bold = editor.Project.ReadRevision(editor.Project.Head).Change.Label;
+        editor.SetTextItalic(item.Id, true);
+        editor.SetTextItalic(item.Id, false);
+        var notItalic = editor.Project.ReadRevision(editor.Project.Head).Change.Label;
+        editor.Project.Dispose();
+
+        var saved = Reopen().Find<TextItem>(item.Id)!;
+        Assert.Equal(TextAlign.Right, saved.Align);
+        Assert.True(saved.Bold);
+        Assert.False(saved.Italic);
+        Assert.Equal("Alinhou o texto \"Atalhos\" à direita", align);
+        Assert.Equal("Pôs o texto \"Atalhos\" em negrito", bold);
+        Assert.Equal("Tirou o itálico do texto \"Atalhos\"", notItalic);
+    }
+
+    [Fact]
+    public void Going_back_to_automatic_alignment_is_a_change_and_the_same_again_is_not()
+    {
+        var editor = NewEditor();
+        var item = editor.AddText("Atalhos", SomeRect);
+        editor.SetTextAlign(item.Id, TextAlign.Center);
+        var head = editor.Project.Head;
+
+        editor.SetTextAlign(item.Id, TextAlign.Center);
+        Assert.Equal(head, editor.Project.Head);
+
+        editor.SetTextAlign(item.Id, null);
+        Assert.Equal(head + 1, editor.Project.Head);
+        Assert.Null(editor.Find<TextItem>(item.Id)!.Align);
+    }
+
     [Theory]
     [InlineData("Curto", "Curto")]
     [InlineData("Primeira linha\nSegunda linha", "Primeira linha")]

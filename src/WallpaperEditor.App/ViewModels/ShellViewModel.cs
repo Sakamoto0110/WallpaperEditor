@@ -1,5 +1,6 @@
 using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
+using WallpaperEditor.App.Companion;
 using WallpaperEditor.Core.Monitors;
 using WallpaperEditor.Core.Projects;
 using WallpaperEditor.Core.Publishing;
@@ -10,7 +11,8 @@ namespace WallpaperEditor.App.ViewModels;
 
 public interface IProjectNavigator
 {
-    void NewProject(MonitorInfo? forMonitor);
+    /// <summary>Asks for a name and, unless <paramref name="background"/> is given, for the background image.</summary>
+    void NewProject(MonitorInfo? forMonitor, string? background = null);
 
     void OpenProject();
 
@@ -26,6 +28,7 @@ public sealed partial class ShellViewModel : ObservableObject, IProjectNavigator
     private readonly WpfWallpaperRenderer _renderer;
     private readonly IDialogs _dialogs;
     private readonly string _projectsRoot;
+    private readonly CompanionChannel _companion;
     private readonly MainViewModel _monitorsScreen;
     private EditorViewModel? _editor;
 
@@ -35,7 +38,8 @@ public sealed partial class ShellViewModel : ObservableObject, IProjectNavigator
         WallpaperPublisher publisher,
         WpfWallpaperRenderer renderer,
         IDialogs dialogs,
-        string projectsRoot)
+        string projectsRoot,
+        CompanionChannel companion)
     {
         _monitors = monitors;
         _wallpapers = wallpapers;
@@ -43,7 +47,8 @@ public sealed partial class ShellViewModel : ObservableObject, IProjectNavigator
         _renderer = renderer;
         _dialogs = dialogs;
         _projectsRoot = projectsRoot;
-        _monitorsScreen = new MainViewModel(monitors, wallpapers, publisher, renderer, dialogs, this);
+        _companion = companion;
+        _monitorsScreen = new MainViewModel(monitors, wallpapers, publisher, renderer, dialogs, this, companion);
         Current = _monitorsScreen;
     }
 
@@ -66,7 +71,7 @@ public sealed partial class ShellViewModel : ObservableObject, IProjectNavigator
         _editor?.RefreshMonitors();
     }
 
-    public void NewProject(MonitorInfo? forMonitor)
+    public void NewProject(MonitorInfo? forMonitor, string? background = null)
     {
         var name = _dialogs.AskText("Novo wallpaper dinâmico", "Nome do projeto:", "Minha mesa");
         if (string.IsNullOrWhiteSpace(name))
@@ -74,7 +79,8 @@ public sealed partial class ShellViewModel : ObservableObject, IProjectNavigator
             return;
         }
 
-        var image = _dialogs.ChooseImage("Imagem de fundo");
+        // The project keeps its own copy of the background, so the wallpaper file can change or go away afterwards.
+        var image = background ?? _dialogs.ChooseImage("Imagem de fundo");
         if (image is null)
         {
             return;
@@ -129,12 +135,15 @@ public sealed partial class ShellViewModel : ObservableObject, IProjectNavigator
         Current = _monitorsScreen;
     }
 
+    /// <summary>True to let the window close; the editor may ask about changes the wallpaper does not show yet.</summary>
+    public Task<bool> ConfirmCloseAsync() => _editor?.ConfirmLeaveAsync() ?? Task.FromResult(true);
+
     public void Dispose() => CloseEditor();
 
     private void ShowEditor(ProjectFolder project)
     {
         CloseEditor();
-        _editor = new EditorViewModel(project, _monitors, _wallpapers, _publisher, _renderer, _dialogs, ShowMonitors);
+        _editor = new EditorViewModel(project, _monitors, _wallpapers, _publisher, _renderer, _dialogs, ShowMonitors, _companion);
         _publisher.RememberProject(project.FolderPath);
         Current = _editor;
     }

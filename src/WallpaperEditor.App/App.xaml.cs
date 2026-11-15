@@ -1,7 +1,9 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Threading;
+using WallpaperEditor.App.Companion;
 using WallpaperEditor.App.ViewModels;
+using WallpaperEditor.Core.Monitors;
 using WallpaperEditor.Core.Publishing;
 using WallpaperEditor.Platform.Windows;
 using WallpaperEditor.Rendering;
@@ -14,16 +16,21 @@ public partial class App : Application
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "WallpaperEditor");
 
+    private CompanionHost? _companion;
+
     /// <param name="e">
     /// Supports <c>--project &lt;folder&gt;</c> to open a project directly, and <c>--data &lt;folder&gt;</c> to keep
-    /// this machine's state somewhere else, so a test run cannot disturb the real one.
+    /// this machine's state, and new projects, somewhere else, so a test run cannot disturb the real ones.
+    /// <c>--companion</c> starts the companion instead of the main window, and <c>--interact &lt;monitor&gt;</c>
+    /// opens its window for that monitor.
     /// </param>
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
         DispatcherUnhandledException += OnUnhandledException;
 
-        _dataRoot = ArgumentAfter(e.Args, "--data") ?? _dataRoot;
+        var testData = ArgumentAfter(e.Args, "--data");
+        _dataRoot = testData ?? _dataRoot;
 
         var windows = new DesktopWallpaperService();
         var renderer = new WpfWallpaperRenderer();
@@ -34,17 +41,50 @@ public partial class App : Application
             new AppStateStore(Path.Combine(_dataRoot, "state.json")),
             Path.Combine(_dataRoot, "published"));
 
-        var projectsRoot = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
-            "WallpaperEditor");
+        var companion = new CompanionChannel(_dataRoot, isTestData: testData is not null);
+
+        if (e.Args.Contains(CompanionChannel.Argument))
+        {
+            StartCompanion(e.Args, companion, windows, publisher);
+            return;
+        }
+
+        // With test data, new projects stay with it instead of landing in the real Documents.
+        var projectsRoot = testData is not null
+            ? Path.Combine(testData, "projects")
+            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "WallpaperEditor");
 
         var window = new MainWindow();
-        var shell = new ShellViewModel(windows, windows, publisher, renderer, new WpfDialogs(window), projectsRoot);
+        var shell = new ShellViewModel(windows, windows, publisher, renderer, new WpfDialogs(window), projectsRoot, companion);
         window.DataContext = shell;
         MainWindow = window;
         window.Show();
 
         shell.Start(ArgumentAfter(e.Args, "--project"));
+
+        // A companion closed from its menu comes back while a dynamic wallpaper is on screen.
+        companion.Sync(publisher);
+    }
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+        _companion?.Dispose();
+        base.OnExit(e);
+    }
+
+    /// <summary>The same program without the main window: see <see cref="CompanionHost"/>.</summary>
+    private void StartCompanion(string[] args, CompanionChannel channel, DesktopWallpaperService windows, WallpaperPublisher publisher)
+    {
+        ShutdownMode = ShutdownMode.OnExplicitShutdown;
+        var monitor = ArgumentAfter(args, CompanionChannel.InteractArgument) is { Length: > 0 } id ? new MonitorId(id) : null;
+
+        _companion = new CompanionHost(channel, windows, publisher, this);
+        if (!_companion.Start(monitor))
+        {
+            _companion.Dispose();
+            _companion = null;
+            Shutdown();
+        }
     }
 
     private static string? ArgumentAfter(string[] args, string name)

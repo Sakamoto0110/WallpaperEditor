@@ -105,6 +105,20 @@ public sealed class WallpaperPublisher(
             .ToList();
     }
 
+    /// <summary>
+    /// The attached monitors that show a project right now: the app published it, and nothing replaced it since,
+    /// inside the app or out of it. These are the wallpapers the user can interact with.
+    /// </summary>
+    public IReadOnlyList<MonitorAssignment> ShownProjects()
+    {
+        var attached = monitors.GetMonitors().ToDictionary(m => m.Id.Value, StringComparer.OrdinalIgnoreCase);
+        return store.Load().Monitors.Values
+            .Where(a => a is { ProjectPath: not null, PublishedFile: not null }
+                && attached.TryGetValue(a.MonitorId, out var monitor)
+                && IsSamePath(wallpapers.GetWallpaper(monitor.Id), a.PublishedFile))
+            .ToList();
+    }
+
     public string? LastProjectPath => store.Load().LastProjectPath;
 
     public void RememberProject(string? projectPath)
@@ -164,28 +178,43 @@ public sealed class WallpaperPublisher(
         }
     }
 
-    /// <summary>Puts back what the monitor had before the app first touched it.</summary>
-    public void RestoreOriginal(MonitorId monitorId)
+    /// <summary>
+    /// Puts back what the monitor had before the app first touched it: the original file where it was, or the
+    /// app's copy of it if that file is gone.
+    /// </summary>
+    /// <returns>True if the copy was used, because the original file no longer exists.</returns>
+    public bool RestoreOriginal(MonitorId monitorId)
     {
         ArgumentNullException.ThrowIfNull(monitorId);
 
         FindActive(monitorId);
 
         var state = store.Load();
-        var original = state.Monitors.GetValueOrDefault(monitorId.Value)?.OriginalWallpaper;
-        if (original is null || !File.Exists(original))
-        {
-            throw new OriginalWallpaperUnavailableException(original);
-        }
+        var assignment = state.Monitors.GetValueOrDefault(monitorId.Value);
+        var original = assignment?.OriginalWallpaper;
+        var copy = assignment?.OriginalCopy;
 
-        wallpapers.SetWallpaper(monitorId, original);
+        // The original where it was comes first: that is the file the user chose, and Windows keeps pointing at it.
+        var source = original is not null && File.Exists(original) ? original
+            : copy is not null && File.Exists(copy) ? copy
+            : throw new OriginalWallpaperUnavailableException(original);
+
+        wallpapers.SetWallpaper(monitorId, source);
 
         state.Monitors.Remove(monitorId.Value);
         store.Save(state);
 
+        // A copy now on screen stays; one that was not needed goes.
+        var usedCopy = IsSamePath(source, copy);
+        if (!usedCopy)
+        {
+            RemoveFiles(OriginalFolderFor(monitorId), keep: null);
+        }
+
         // The shell may still be reading the last published file for a moment; a leftover is harmless
         // and is removed on the next publish.
         RemoveOldFiles(FolderFor(monitorId), keep: null);
+        return usedCopy;
     }
 
     public MonitorAssignment? GetAssignment(MonitorId monitorId) =>
@@ -224,18 +253,76 @@ public sealed class WallpaperPublisher(
                 MonitorId = monitor.Id.Value,
                 LastKnownName = monitor.Name,
                 OriginalWallpaper = current,
+                OriginalCopy = KeepCopy(monitor.Id, current),
             };
         }
 
-        return IsSamePath(current, existing.PublishedFile)
-            ? existing with { LastKnownName = monitor.Name }
-            : existing with { LastKnownName = monitor.Name, OriginalWallpaper = current };
+        if (!IsSamePath(current, existing.PublishedFile))
+        {
+            return existing with { LastKnownName = monitor.Name, OriginalWallpaper = current, OriginalCopy = KeepCopy(monitor.Id, current) };
+        }
+
+        // Same original as before. A state from before copies were kept gets one now, while the file is still there.
+        var copy = existing.OriginalCopy is { } kept && File.Exists(kept) ? kept : KeepCopy(monitor.Id, existing.OriginalWallpaper);
+        return existing with { LastKnownName = monitor.Name, OriginalCopy = copy };
+    }
+
+    /// <summary>
+    /// Copies the original into the app's folder, replacing any older copy. Never fails a publish: without a copy,
+    /// restoring still works as long as the original file stays where it is.
+    /// </summary>
+    private string? KeepCopy(MonitorId monitorId, string? original)
+    {
+        if (original is null || !File.Exists(original))
+        {
+            return null;
+        }
+
+        var folder = OriginalFolderFor(monitorId);
+        var target = Path.Combine(folder, Path.GetFileName(original));
+
+        // Already the copy: it went back on screen through a restore, and must not be deleted to copy it onto itself.
+        if (IsSamePath(Path.GetFullPath(original), Path.GetFullPath(target)))
+        {
+            return target;
+        }
+
+        var temporary = Path.Combine(folder, $".tmp-{Guid.NewGuid():N}");
+        try
+        {
+            Directory.CreateDirectory(folder);
+            File.Copy(original, temporary);
+            RemoveFiles(folder, keep: temporary);
+            File.Move(temporary, target, overwrite: true);
+            return target;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            TryDelete(temporary);
+            return null;
+        }
     }
 
     private string FolderFor(MonitorId monitorId)
     {
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(monitorId.Value.ToUpperInvariant()));
         return Path.Combine(publishedRoot, Convert.ToHexStringLower(hash)[..16]);
+    }
+
+    /// <summary>Inside the monitor's folder, where the clean-up of published files never looks.</summary>
+    private string OriginalFolderFor(MonitorId monitorId) => Path.Combine(FolderFor(monitorId), "original");
+
+    private static void RemoveFiles(string folder, string? keep)
+    {
+        if (!Directory.Exists(folder))
+        {
+            return;
+        }
+
+        foreach (var file in Directory.GetFiles(folder).Where(f => !IsSamePath(f, keep)))
+        {
+            TryDelete(file);
+        }
     }
 
     private static void RemoveOldFiles(string folder, string? keep)

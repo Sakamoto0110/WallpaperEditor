@@ -54,7 +54,116 @@ public sealed class ProjectEditor(ProjectFolder project, Func<StyledItem, double
         if (value != item.Text)
         {
             var updated = item with { Text = value };
-            ReplaceChecklist(updated, ChangeKinds.ItemEdited, $"Editou {Describe(updated)}");
+            ReplaceStyled(updated, ChangeKinds.ItemEdited, $"Editou {Describe(updated)}");
+        }
+    }
+
+    public CounterItem AddCounter(string label, ItemRect rect) =>
+        AddControl(new CounterItem { Id = DocumentItem.NewId(), Rect = Sanitize(rect), Label = label });
+
+    public ProgressItem AddProgress(string label, ItemRect rect) =>
+        AddControl(new ProgressItem { Id = DocumentItem.NewId(), Rect = Sanitize(rect), Label = label });
+
+    public ToggleItem AddToggle(string label, ItemRect rect) =>
+        AddControl(new ToggleItem { Id = DocumentItem.NewId(), Rect = Sanitize(rect), Label = label });
+
+    public void SetControlLabel(string itemId, string label)
+    {
+        ArgumentNullException.ThrowIfNull(label);
+
+        var item = Find<ControlItem>(itemId) ?? throw MissingItem(itemId);
+        var value = label.Trim();
+        if (value != item.Label)
+        {
+            var updated = item with { Label = value };
+            ReplaceStyled(updated, ChangeKinds.ItemEdited, $"Renomeou {Describe(item)} para {Quoted(value)}");
+        }
+    }
+
+    public void StepCounter(string itemId, int delta)
+    {
+        var item = Find<CounterItem>(itemId) ?? throw MissingItem(itemId);
+        SetCounterValue(itemId, (int)Math.Clamp((long)item.Value + delta, int.MinValue, int.MaxValue));
+    }
+
+    public void SetCounterValue(string itemId, int value)
+    {
+        var item = Find<CounterItem>(itemId) ?? throw MissingItem(itemId);
+        if (value != item.Value)
+        {
+            ReplaceStyled(item with { Value = value }, ChangeKinds.ValueChanged, $"Mudou {Describe(item)} para {value}");
+        }
+    }
+
+    public void SetProgress(string itemId, int percent)
+    {
+        var item = Find<ProgressItem>(itemId) ?? throw MissingItem(itemId);
+        var value = Math.Clamp(percent, 0, 100);
+        if (value != item.Percent)
+        {
+            ReplaceStyled(item with { Percent = value }, ChangeKinds.ValueChanged, $"Mudou {Describe(item)} para {value}%");
+        }
+    }
+
+    public void SetToggle(string itemId, bool on)
+    {
+        var item = Find<ToggleItem>(itemId) ?? throw MissingItem(itemId);
+        if (on != item.On)
+        {
+            var updated = item with { On = on };
+            ReplaceStyled(updated, ChangeKinds.ValueChanged, $"Mudou {Describe(item)} para {Quoted(updated.StateText)}");
+        }
+    }
+
+    /// <summary>The text shown for each state. Neither may be empty, or one state would look like nothing at all.</summary>
+    public void SetToggleTexts(string itemId, string onText, string offText)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(onText);
+        ArgumentException.ThrowIfNullOrWhiteSpace(offText);
+
+        var item = Find<ToggleItem>(itemId) ?? throw MissingItem(itemId);
+        var updated = item with { OnText = onText.Trim(), OffText = offText.Trim() };
+        if (updated != item)
+        {
+            ReplaceStyled(updated, ChangeKinds.ItemEdited, $"Mudou os estados {Of(item)}");
+        }
+    }
+
+    /// <summary>Null goes back to automatic: centered in a thought balloon, on the left anywhere else.</summary>
+    public void SetTextAlign(string itemId, TextAlign? align)
+    {
+        var item = Find<TextItem>(itemId) ?? throw MissingItem(itemId);
+        if (align != item.Align)
+        {
+            var how = align switch
+            {
+                TextAlign.Left => "à esquerda",
+                TextAlign.Center => "ao centro",
+                TextAlign.Right => "à direita",
+                TextAlign.Justify => "justificado",
+                _ => "automaticamente",
+            };
+            ReplaceStyled(item with { Align = align }, ChangeKinds.ItemEdited, $"Alinhou {Describe(item)} {how}");
+        }
+    }
+
+    public void SetTextBold(string itemId, bool bold)
+    {
+        var item = Find<TextItem>(itemId) ?? throw MissingItem(itemId);
+        if (bold != item.Bold)
+        {
+            var label = bold ? $"Pôs {Describe(item)} em negrito" : $"Tirou o negrito {Of(item)}";
+            ReplaceStyled(item with { Bold = bold }, ChangeKinds.ItemEdited, label);
+        }
+    }
+
+    public void SetTextItalic(string itemId, bool italic)
+    {
+        var item = Find<TextItem>(itemId) ?? throw MissingItem(itemId);
+        if (italic != item.Italic)
+        {
+            var label = italic ? $"Pôs {Describe(item)} em itálico" : $"Tirou o itálico {Of(item)}";
+            ReplaceStyled(item with { Italic = italic }, ChangeKinds.ItemEdited, label);
         }
     }
 
@@ -81,8 +190,16 @@ public sealed class ProjectEditor(ProjectFolder project, Func<StyledItem, double
         var value = Math.Clamp(opacity, 0, 1);
         if (value != item.Opacity)
         {
-            Replace(item with { Opacity = value }, $"Mudou a opacidade de {Describe(item)}");
+            Replace(item with { Opacity = value }, $"Mudou a opacidade {Of(item)}");
         }
+    }
+
+    /// <summary>Flips an image left to right, or back.</summary>
+    public void ToggleMirror(string itemId)
+    {
+        var item = Find<ImageItem>(itemId) ?? throw MissingItem(itemId);
+        var label = item.Mirrored ? $"Desfez o espelho {Of(item)}" : $"Espelhou {Describe(item)}";
+        Replace(item with { Mirrored = !item.Mirrored }, label);
     }
 
     /// <summary>Moves an item up (positive) or down (negative) in the drawing order.</summary>
@@ -99,7 +216,7 @@ public sealed class ProjectEditor(ProjectFolder project, Func<StyledItem, double
 
         items.RemoveAt(from);
         items.Insert(to, item);
-        Apply(WithItems(items), new RevisionChange(ChangeKinds.ItemEdited, $"Mudou a ordem de {Describe(item)}") { ItemId = itemId });
+        Apply(WithItems(items), new RevisionChange(ChangeKinds.ItemEdited, $"Mudou a ordem {Of(item)}") { ItemId = itemId });
     }
 
     public void SetBackground(string file, FitMode fit)
@@ -121,7 +238,7 @@ public sealed class ProjectEditor(ProjectFolder project, Func<StyledItem, double
         var item = Checklist(itemId);
         if (title != item.Title)
         {
-            ReplaceChecklist(item with { Title = title }, ChangeKinds.ItemEdited, $"Renomeou a checklist para {Quoted(title)}");
+            ReplaceStyled(item with { Title = title }, ChangeKinds.ItemEdited, $"Renomeou a checklist para {Quoted(title)}");
         }
     }
 
@@ -131,7 +248,7 @@ public sealed class ProjectEditor(ProjectFolder project, Func<StyledItem, double
         var value = Math.Clamp(size, 8, 200);
         if (value != item.Style.Size)
         {
-            ReplaceChecklist(item with { Style = item.Style with { Size = value } }, ChangeKinds.ItemEdited, $"Mudou o tamanho do texto de {Describe(item)}");
+            ReplaceStyled(item with { Style = item.Style with { Size = value } }, ChangeKinds.ItemEdited, $"Mudou o tamanho do texto {Of(item)}");
         }
     }
 
@@ -142,7 +259,7 @@ public sealed class ProjectEditor(ProjectFolder project, Func<StyledItem, double
         var item = Styled(itemId);
         if (font != item.Style.Font)
         {
-            ReplaceChecklist(item with { Style = item.Style with { Font = font } }, ChangeKinds.ItemEdited, $"Mudou a fonte de {Describe(item)} para {font}");
+            ReplaceStyled(item with { Style = item.Style with { Font = font } }, ChangeKinds.ItemEdited, $"Mudou a fonte {Of(item)} para {font}");
         }
     }
 
@@ -152,7 +269,7 @@ public sealed class ProjectEditor(ProjectFolder project, Func<StyledItem, double
         var style = item.Style.WithTextOpacity(opacity);
         if (style != item.Style)
         {
-            ReplaceChecklist(item with { Style = style }, ChangeKinds.ItemEdited, $"Mudou a opacidade do texto de {Describe(item)}");
+            ReplaceStyled(item with { Style = style }, ChangeKinds.ItemEdited, $"Mudou a opacidade do texto {Of(item)}");
         }
     }
 
@@ -162,7 +279,32 @@ public sealed class ProjectEditor(ProjectFolder project, Func<StyledItem, double
         var style = item.Style.WithPanelOpacity(opacity);
         if (style != item.Style)
         {
-            ReplaceChecklist(item with { Style = style }, ChangeKinds.ItemEdited, $"Mudou a opacidade do painel de {Describe(item)}");
+            ReplaceStyled(item with { Style = style }, ChangeKinds.ItemEdited, $"Mudou a opacidade do painel {Of(item)}");
+        }
+    }
+
+    public void SetItemPanelShape(string itemId, PanelShape shape)
+    {
+        var item = Styled(itemId);
+        if (shape != item.Style.Shape)
+        {
+            var name = shape switch
+            {
+                PanelShape.Speech => "balão de fala",
+                PanelShape.Thought => "balão de pensamento",
+                _ => "arredondado",
+            };
+            ReplaceStyled(item with { Style = item.Style with { Shape = shape } }, ChangeKinds.ItemEdited, $"Mudou o painel {Of(item)} para {name}");
+        }
+    }
+
+    public void SetItemTail(string itemId, TailSide side)
+    {
+        var item = Styled(itemId);
+        if (side != item.Style.Tail)
+        {
+            var name = side == TailSide.Right ? "a direita" : "a esquerda";
+            ReplaceStyled(item with { Style = item.Style with { Tail = side } }, ChangeKinds.ItemEdited, $"Virou a ponta do balão {Of(item)} para {name}");
         }
     }
 
@@ -172,14 +314,14 @@ public sealed class ProjectEditor(ProjectFolder project, Func<StyledItem, double
 
         var item = Checklist(itemId);
         var entry = new ChecklistEntry(DocumentItem.NewId(), text.Trim(), Done: false);
-        ReplaceChecklist(item with { Entries = [.. item.Entries, entry] }, ChangeKinds.EntryAdded, $"Adicionou a tarefa {Quoted(entry.Text)}");
+        ReplaceStyled(item with { Entries = [.. item.Entries, entry] }, ChangeKinds.EntryAdded, $"Adicionou a tarefa {Quoted(entry.Text)}");
     }
 
     public void RemoveEntry(string itemId, string entryId)
     {
         var item = Checklist(itemId);
         var entry = RequiredEntry(item, entryId);
-        ReplaceChecklist(item with { Entries = [.. item.Entries.Where(e => e.Id != entryId)] }, ChangeKinds.EntryRemoved, $"Removeu a tarefa {Quoted(entry.Text)}");
+        ReplaceStyled(item with { Entries = [.. item.Entries.Where(e => e.Id != entryId)] }, ChangeKinds.EntryRemoved, $"Removeu a tarefa {Quoted(entry.Text)}");
     }
 
     public void ToggleEntry(string itemId, string entryId)
@@ -187,7 +329,7 @@ public sealed class ProjectEditor(ProjectFolder project, Func<StyledItem, double
         var item = Checklist(itemId);
         var entry = RequiredEntry(item, entryId);
         var verb = entry.Done ? "Desmarcou" : "Marcou";
-        ReplaceChecklist(
+        ReplaceStyled(
             item with { Entries = [.. item.Entries.Select(e => e.Id == entryId ? e with { Done = !e.Done } : e)] },
             ChangeKinds.EntryToggled,
             $"{verb} a tarefa {Quoted(entry.Text)}");
@@ -202,7 +344,7 @@ public sealed class ProjectEditor(ProjectFolder project, Func<StyledItem, double
         var value = text.Trim();
         if (value != entry.Text)
         {
-            ReplaceChecklist(
+            ReplaceStyled(
                 item with { Entries = [.. item.Entries.Select(e => e.Id == entryId ? e with { Text = value } : e)] },
                 ChangeKinds.EntryEdited,
                 $"Editou a tarefa {Quoted(value)}");
@@ -259,7 +401,15 @@ public sealed class ProjectEditor(ProjectFolder project, Func<StyledItem, double
             WithItems([.. Document.Items.Select(i => i.Id == updated.Id ? updated : i)]),
             new RevisionChange(ChangeKinds.ItemEdited, label) { ItemId = updated.Id });
 
-    private void ReplaceChecklist(StyledItem updated, string kind, string label)
+    private T AddControl<T>(T item)
+        where T : ControlItem
+    {
+        var grown = (T)GrowToFit(item);
+        Apply(WithItems([.. Document.Items, grown]), new RevisionChange(ChangeKinds.ItemAdded, $"Adicionou {Describe(grown)}") { ItemId = grown.Id });
+        return grown;
+    }
+
+    private void ReplaceStyled(StyledItem updated, string kind, string label)
     {
         var grown = GrowToFit(updated);
         Apply(
@@ -312,8 +462,22 @@ public sealed class ProjectEditor(ProjectFolder project, Func<StyledItem, double
         ImageItem image => $"a imagem {image.Source.OriginalName}",
         ChecklistItem checklist => $"a checklist {Quoted(checklist.Title)}",
         TextItem text => $"o texto {Quoted(text.Label())}",
+        CounterItem counter => Named("o contador", counter.Label),
+        ProgressItem progress => Named("a barra de progresso", progress.Label),
+        ToggleItem toggle => Named("a alternância", toggle.Label),
         _ => "o item",
     };
+
+    private static string Named(string kind, string label) => label.Length > 0 ? $"{kind} {Quoted(label)}" : kind;
+
+    /// <summary>"da imagem", "do texto": Portuguese joins "de" with the article, and "de a imagem" reads wrong.</summary>
+    private static string Of(DocumentItem item)
+    {
+        var described = Describe(item);
+        return described.StartsWith("a ", StringComparison.Ordinal) || described.StartsWith("o ", StringComparison.Ordinal)
+            ? $"d{described}"
+            : $"de {described}";
+    }
 
     private static string Quoted(string text) => $"\"{text}\"";
 }

@@ -116,7 +116,7 @@ internal static class Program
     private static void Images(string dir)
     {
         Directory.CreateDirectory(dir);
-        var size = Portrait().Bounds;
+        var size = PortraitSize();
         WritePng(Pattern(size.Width, size.Height, "TESTE A", Color.FromRgb(20, 50, 90)), Path.Combine(dir, "pattern-a.png"));
         WritePng(Pattern(size.Width, size.Height, "TESTE B", Color.FromRgb(90, 30, 40)), Path.Combine(dir, "pattern-b.png"));
         WritePng(Photo(size.Width, size.Height, 1), Path.Combine(dir, "photo-a.png"));
@@ -263,7 +263,7 @@ internal static class Program
     /// <summary>A project with one of everything, and the image it renders to next to it, for inspection.</summary>
     private static void DemoProject(string folder, string background, string image)
     {
-        var canvas = Portrait().Bounds.Size;
+        var canvas = PortraitSize();
         using var project = ProjectFolder.Create(folder, "Demonstração", canvas, background, FitMode.Fill);
         var editor = new ProjectEditor(project, StyledItemPainter.RequiredHeight);
 
@@ -277,6 +277,21 @@ internal static class Program
         }
 
         editor.ToggleEntry(list.Id, editor.Find<ChecklistItem>(list.Id)!.Entries[0].Id);
+
+        var counter = editor.AddCounter("Dias seguidos", new ItemRect(100, 520, 420, 100));
+        editor.SetCounterValue(counter.Id, 12);
+
+        var toggle = editor.AddToggle("Modo", new ItemRect(560, 520, 420, 100));
+        editor.SetToggleTexts(toggle.Id, "Foco", "Livre");
+        editor.SetToggle(toggle.Id, true);
+        editor.SetItemPanelShape(toggle.Id, PanelShape.Speech);
+
+        var thought = editor.AddText("Lembrar de beber água", new ItemRect(380, 950, 600, 100));
+        editor.SetItemPanelShape(thought.Id, PanelShape.Thought);
+        editor.SetItemTail(thought.Id, TailSide.Right);
+
+        var progress = editor.AddProgress("Leitura do livro", new ItemRect(100, 800, 880, 100));
+        editor.SetProgress(progress.Id, 40);
 
         var output = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(folder))!, "demo-output.png");
         new WpfWallpaperRenderer()
@@ -297,6 +312,22 @@ internal static class Program
         new WpfWallpaperRenderer(),
         new AppStateStore(Path.Combine(dataDir, "state.json")),
         Path.Combine(dataDir, "published"));
+
+    /// <summary>
+    /// For commands that only need the shape and write no wallpaper: the portrait monitor's size, or the size it has
+    /// on this machine when it is not active.
+    /// </summary>
+    private static PixelSize PortraitSize()
+    {
+        var portraits = Service.GetMonitors().Where(m => m.IsPortrait).ToList();
+        if (portraits.Count == 1)
+        {
+            return portraits[0].Bounds.Size;
+        }
+
+        Console.WriteLine("no active portrait monitor: using 1080x1920");
+        return new PixelSize(1080, 1920);
+    }
 
     private static MonitorInfo Portrait()
     {
