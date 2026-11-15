@@ -2,10 +2,10 @@
 # through Directory.Build.props. Windows only, since the app, the rendering tests and the Windows SDK projects need it.
 name: CI
 
+# No path filter on push: a new branch has no changed files to compare, and a filter would skip it silently.
 on:
   push:
     branches: ["**"]
-    paths-ignore: ["docs/**", "**/*.md"]
   pull_request:
     branches: [main]
     paths-ignore: ["docs/**", "**/*.md"]
@@ -28,10 +28,10 @@ jobs:
     timeout-minutes: 20
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # The SDK pinned in global.json, so CI builds with the same compiler and analyzers as this machine.
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
 
@@ -48,7 +48,7 @@ jobs:
 
       - name: Keep the test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results
           path: TestResults
