@@ -16,7 +16,8 @@ usá-lo sem abrir o editor. O wallpaper só muda pelo app.
 
 ## Instalar
 
-Baixe o `WallpaperEditor-<versão>-setup.exe` na página de Releases. O instalador:
+Baixe o `WallpaperEditor-<versão>-setup.exe` na [página de Releases](https://github.com/Sakamoto0110/WallpaperEditor/releases/latest).
+O instalador:
 
 - pergunta se instala **só para você** (em `AppData\Local\Programs`, sem administrador, o padrão) ou **para todos os
   usuários** (em Arquivos de Programas, com administrador), e deixa trocar a pasta;

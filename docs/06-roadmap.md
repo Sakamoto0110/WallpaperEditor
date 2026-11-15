@@ -151,6 +151,10 @@ sozinho depois de reiniciar, com as mudanças feitas por ele.
 **A v0.1.0 é o que existe até aqui:** as fases 1 a 4, mais o que esta fase empacota. O nome **WallpaperEditor**
 ainda pode mudar.
 
+**Lançada em 2026-11-15:** [github.com/Sakamoto0110/WallpaperEditor/releases/tag/v0.1.0](https://github.com/Sakamoto0110/WallpaperEditor/releases/tag/v0.1.0),
+com o instalador (2,6 MiB) e o `.zip` (0,7 MiB), cada um com o SHA-256. No GitHub, o CI rodou os 265 testes em cerca
+de 1 min 20 s, sem avisos, e o release levou 1 min 44 s, com o Inno Setup 6.7.1 que já vem no runner.
+
 - [x] Repositório no GitHub, público, com este README e os documentos como estão
 - [x] CI no GitHub Actions (`.github/workflows/ci.yml`, `windows-latest`): restore, build em Release com avisos como
   erros, e os testes, com o SDK do `global.json`. Roda em cada push e em pull requests para `main`
