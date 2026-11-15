@@ -1,0 +1,77 @@
+# Pushing a tag such as v0.1.0 tests the code at that tag, publishes the app and attaches a .zip, with its SHA-256,
+# to a GitHub Release. The installer from the roadmap (phase 5) will be added here, next to the .zip.
+#
+# The .zip is framework-dependent: it needs the .NET Desktop Runtime 10. The experimental AnimatedHost is left out,
+# since the app does not start it yet.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      # The tag reaches the script through the environment, never pasted into it.
+      - name: Read the version from the tag
+        shell: pwsh
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          $version = $env:TAG -replace '^v', ''
+          if ($version -notmatch '^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$') {
+            throw "The tag '$env:TAG' is not a version such as v0.1.0 or v0.2.0-beta.1."
+          }
+          "VERSION=$version" >> $env:GITHUB_ENV
+
+      # Nothing is released from a commit whose tests fail.
+      - name: Test
+        run: dotnet test WallpaperEditor.slnx --configuration Release
+
+      - name: Publish
+        shell: pwsh
+        run: >
+          dotnet publish src/WallpaperEditor.App/WallpaperEditor.App.csproj
+          --configuration Release --runtime win-x64 --self-contained false
+          -p:Version=$env:VERSION
+          --output artifacts/WallpaperEditor
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $zip = "artifacts/WallpaperEditor-$env:VERSION-win-x64.zip"
+          Compress-Archive -Path artifacts/WallpaperEditor/* -DestinationPath $zip
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $(Split-Path $zip -Leaf)" | Set-Content "$zip.sha256" -Encoding ascii
+          "ZIP=$zip" >> $env:GITHUB_ENV
+
+      # A version with a suffix, such as -beta.1, is marked as a pre-release.
+      - name: Create the release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          $flags = @('--generate-notes', '--title', "WallpaperEditor $env:VERSION")
+          if ($env:VERSION -match '-') { $flags += '--prerelease' }
+          gh release create $env:TAG $env:ZIP "$env:ZIP.sha256" @flags

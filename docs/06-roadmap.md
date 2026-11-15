@@ -155,9 +155,13 @@ Windows apontando para `bin\Debug`, que some com um `dotnet clean`.
 
 - [ ] Repositório no GitHub, com este README e os documentos como estão
 - [ ] CI no GitHub Actions (`windows-latest`): `dotnet build` e `dotnet test`, com avisos como erros, como aqui. Os
-  testes do `Rendering` precisam de WPF, que o runner Windows tem
+  testes do `Rendering` precisam de WPF, que o runner Windows tem. **Escrito** em `.github/workflows/ci.yml`, com o
+  SDK do `global.json`; os mesmos passos passam nesta máquina, mas o workflow ainda não rodou, porque não há remoto
 - [ ] Versão SemVer em `Directory.Build.props`, mostrada na janela, e um `CHANGELOG.md`
-- [ ] Release a partir de uma tag `v*`: `dotnet publish` framework-dependent num `.zip`, com o hash SHA-256 ao lado
+- [ ] Release a partir de uma tag `v*`: `dotnet publish` framework-dependent num `.zip`, com o hash SHA-256 ao lado.
+  **Escrito** em `.github/workflows/release.yml`: testa, publica com a versão da tag e cria o Release; uma tag com
+  sufixo, como `v0.2.0-beta.1`, vira pré-release. Simulado aqui: um `.zip` de 0,7 MiB, com a versão 0.1.0 no
+  executável, que abre normalmente. Ainda não rodou no GitHub
 - [ ] **Instalador**, para o app e o companion nunca apontarem para `bin` ou `obj`:
   - instala por usuário em `%LOCALAPPDATA%\Programs\WallpaperEditor`, sem administrador, com atalho no menu Iniciar;
   - verifica se o .NET Desktop Runtime 10 está instalado, e indica onde baixá-lo se faltar;

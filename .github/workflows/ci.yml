@@ -1,0 +1,55 @@
+# Builds everything and runs the tests, as `dotnet build` and `dotnet test` do locally: warnings are errors here too,
+# through Directory.Build.props. Windows only, since the app, the rendering tests and the Windows SDK projects need it.
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+    paths-ignore: ["docs/**", "**/*.md"]
+  pull_request:
+    branches: [main]
+    paths-ignore: ["docs/**", "**/*.md"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # The SDK pinned in global.json, so CI builds with the same compiler and analyzers as this machine.
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore WallpaperEditor.slnx
+
+      - name: Build
+        run: dotnet build WallpaperEditor.slnx --configuration Release --no-restore
+
+      - name: Test
+        run: >
+          dotnet test WallpaperEditor.slnx --configuration Release --no-build
+          --logger trx --results-directory TestResults
+
+      - name: Keep the test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: TestResults
+          if-no-files-found: ignore
