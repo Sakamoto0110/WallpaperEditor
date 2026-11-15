@@ -237,7 +237,7 @@ pequena alteração.
 | Revisão corrompida | Revisão marcada como inválida; as demais continuam utilizáveis (cada revisão é completa) |
 | Asset ausente ou corrompido | O item aparece com um marcador de erro no editor, e publicar pede confirmação |
 | Fonte do sistema ausente | Aviso, com uma fonte alternativa |
-| `AnimatedHost` termina inesperadamente | Esperado: o desktop volta ao wallpaper estático do monitor, a confirmar na Fase 5. O App mostra o estado como parado |
+| `AnimatedHost` termina inesperadamente | Esperado: o desktop volta ao wallpaper estático do monitor, a confirmar no experimento do modo animado. O App mostra o estado como parado |
 
 ## Testes
 

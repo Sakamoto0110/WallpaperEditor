@@ -7,10 +7,11 @@ afetar os outros.
 o app fechado nada fica rodando, a não ser o pequeno **companion** enquanto houver um wallpaper dinâmico na tela, para
 usá-lo sem abrir o editor. O wallpaper só muda pelo app.
 
-> **Status: Fase 4 em conferência, Fase 5 em andamento.** Static e Dynamic funcionam: o editor compõe imagens,
-> checklists, texto e componentes clicáveis (contador, barra de progresso, alternância), com histórico para reverter, e
-> publica em um monitor. Animated existe só como experimento: o `AnimatedHost` roda por linha de comando, fora da
-> interface, para medir o custo. O estado de cada fase, e o que falta testar, está em
+> **Status: Fase 4 em conferência; próxima, a Fase 5 (distribuição, v0.1.0).** Static e Dynamic funcionam: o editor
+> compõe imagens, checklists, texto e componentes clicáveis (contador, barra de progresso, alternância), com histórico
+> para reverter, e publica em um monitor; o companion deixa usar o wallpaper sem abrir o editor. Pela frente: mais
+> props, cor e gradientes com curva, e máscaras. Animated existe só como experimento, sem data: o `AnimatedHost` roda
+> por linha de comando, fora da interface, para medir o custo. As fases, e o que falta testar, estão em
 > [docs/06-roadmap.md](docs/06-roadmap.md).
 
 ## Compilar e testar
@@ -34,6 +35,22 @@ dotnet run --project src/WallpaperEditor.App
 | **Static** | Uma imagem, ajustada ao monitor escolhido | Não |
 | **Dynamic** | Uma composição de camadas (imagens como cheatsheets de uma linguagem, checklists, texto, contadores, barras de progresso e alternâncias), com pasta de projeto, arquivos-fonte e histórico. Os componentes são clicáveis na pré-visualização do app, e o wallpaper só muda em **Atualizar wallpaper**. Fora do editor, o companion abre o wallpaper numa janela onde cada clique o atualiza na hora. A saída é um PNG plano e irreversível; o **registro de alterações** é o que permite reverter e recompor | Só o companion, opcional para o wallpaper continuar na tela |
 | **Animated** | Um vídeo `.mp4` em loop. **Experimental:** existe para descobrir quanta VRAM isso consome | Sim |
+
+## Roadmap
+
+Versões previstas, sem data. Cada fase tem um critério de conclusão verificável; o detalhe está em
+[docs/06-roadmap.md](docs/06-roadmap.md).
+
+| Versão | Fase | O que traz |
+|---|---|---|
+| — | 1 a 4 | Concluídas: elaboração, fundação, Static e Dynamic, com editor, componentes clicáveis e companion |
+| **v0.1.0** | 5 — Distribuição | Repositório no GitHub, CI com build e testes, release a partir de uma tag, e um **instalador** por usuário, sem administrador, para o app e o companion rodarem de um caminho instalado em vez de `bin` |
+| **v0.2** | 6 — Props interativos | Rastreador de hábitos, corrente do mês, pips de pomodoro, anel de progresso, seletor de estado, humor e energia, garrafa d'água, placar, meta em valor, dias desde, kanban mínimo, top 3 do dia, frase da vez, estante, pinos sobre imagem |
+| **v0.3** | 7 — Cor e gradientes | Seletor de cor, paleta do projeto e aviso de contraste. Gradientes linear, radial, cônico e de quatro cantos, com **curva por trecho** (suave, *ease*, Bézier cúbica editável), **inclinação** (ponto médio e dureza), degraus, interpolação em OKLab e pontilhado contra faixas em 8 bits |
+| **v0.4** | 8 — Máscaras e cor por máscara | Máscaras por forma, gradiente, outra imagem, faixa de cor e texto. Dentro delas: tingir, matiz e saturação, cor seletiva, duotone, mapa de gradiente e modos de mistura. Sempre sem alterar os arquivos-fonte |
+| **v0.5** | 9 — Props decorativos | Nota adesiva, moldura de foto, formas, tabela de atalhos com *keycaps*, bloco de código, QR code, adesivo, carimbo "FEITO!" e fitas; guias, agrupar e copiar entre projetos |
+| **v0.6** | 10 — Eventos e gatilhos | O companion se inscreve em dispatchers do Windows (`SystemEvents`, mensagens de janela, WinRT) e vira um barramento: tecla de atalho, linha de comando, links `wallpapereditor://`, virada do dia opcional, regras por projeto, e um prop **Dado da web** que busca uma API e só redesenha quando o valor mostrado muda. Com defesa contra rajadas: agregar, coalescer, intervalo mínimo, limite por fonte e disjuntor |
+| Sem data | Modo animado | Vídeo `.mp4` atrás dos ícones. **Experimental**, sem data nem versão: só segue se as medições de VRAM aprovarem |
 
 ## Documentação
 

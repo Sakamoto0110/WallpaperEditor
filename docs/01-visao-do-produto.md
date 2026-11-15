@@ -126,9 +126,9 @@ sem ele. Ver [05 — Experimento do modo animado](05-experimento-animado.md).
 |---|---|
 | Wallpapers interativos ou com efeitos em tempo real, como no Wallpaper Engine | Contraria o princípio de leveza |
 | Processo residente, bandeja, início com o Windows (fora o companion e o modo animado) | Idem |
-| Atualização automática (horário, slideshow, arquivos observados, dados da internet) | Só o app altera o wallpaper |
-| Ferramentas de pintura e filtros | O app compõe itens; não é um editor de imagens |
-| Perspectiva e máscaras | Nenhum exemplo de uso precisa disso. Pode ser reavaliado |
+| Atualização automática (horário, slideshow, arquivos observados, dados da internet) | Só o app altera o wallpaper. A exceção prevista são regras opcionais por projeto, como a virada do dia; dados de uma API escolhida pelo usuário, que só mudam o wallpaper quando o valor mostrado muda; e comandos do próprio usuário por atalho ou linha de comando ([Fase 10](06-roadmap.md#fase-10--eventos-e-gatilhos-do-companion)), sempre com defesa contra rajadas |
+| Pintura à mão, pincéis e filtros artísticos | O app compõe itens; não é um editor de imagens. Ajustes de cor paramétricos e máscaras por forma, gradiente ou faixa de cor entram no [roadmap](06-roadmap.md#fase-8--máscaras-e-cor-por-máscara), sempre sem alterar os assets |
+| Perspectiva | Nenhum exemplo de uso precisa disso. Pode ser reavaliado |
 | Realce de sintaxe e texto formatado | As referências de linguagem serão imagens. Pode ser reavaliado depois |
 | Imagens sorteadas pelo app | As imagens são sempre escolhidas pelo usuário; sortear sem animação ficaria estranho |
 | Interagir clicando no próprio wallpaper | Exigiria um processo residente ([custo estimado](04-integracao-windows.md#clicar-no-próprio-wallpaper)). Pode ser reavaliado |
