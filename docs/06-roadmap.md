@@ -24,8 +24,8 @@ um experimento, e fica por último.
 
 | Fase | Versão prevista | Situação |
 |---|---|---|
-| 1 a 4 | — | Concluídas; a 4 em conferência |
-| 5 — Distribuição | v0.1.0 | A fazer |
+| 1 a 4 | v0.1.0 | Concluídas |
+| 5 — Distribuição | v0.1.0 | **Lançada**; o nome ainda pode mudar |
 | 6 — Props interativos | v0.2 | A fazer |
 | 7 — Cor e gradientes | v0.3 | A fazer |
 | 8 — Máscaras e cor por máscara | v0.4 | A fazer |
@@ -146,37 +146,49 @@ clique; o ícone, o menu e a dica; e o wallpaper publicado continuando na tela d
 só uma imagem do Windows. Depois, com os dados reais (sem `--data`), o companion se registrou ao abrir o app e voltou
 sozinho depois de reiniciar, com as mudanças feitas por ele.
 
-## Fase 5 — Distribuição
+## Fase 5 — Distribuição: v0.1.0
 
-**Versão prevista:** v0.1.0, o que já existe, empacotado.
+**A v0.1.0 é o que existe até aqui:** as fases 1 a 4, mais o que esta fase empacota. O nome **WallpaperEditor**
+ainda pode mudar.
 
-Hoje o projeto só existe nesta máquina: sem remoto, sem CI, sem release. E o companion se registra para iniciar com o
-Windows apontando para `bin\Debug`, que some com um `dotnet clean`.
+- [x] Repositório no GitHub, público, com este README e os documentos como estão
+- [x] CI no GitHub Actions (`.github/workflows/ci.yml`, `windows-latest`): restore, build em Release com avisos como
+  erros, e os testes, com o SDK do `global.json`. Roda em cada push e em pull requests para `main`
+- [x] Release a partir de uma tag `v*` (`.github/workflows/release.yml`): testa, publica framework-dependent para
+  win-x64 com a versão da tag, gera o instalador e um `.zip`, cada um com o SHA-256 ao lado, e cria o Release. Uma
+  tag com sufixo, como `v0.2.0-beta.1`, vira pré-release
+- [x] **Instalador** com Inno Setup (`installer/WallpaperEditor.iss`), para o app e o companion nunca rodarem de
+  `bin` ou `obj`:
+  - pergunta se instala só para o usuário (`AppData\Local\Programs`, sem administrador, o padrão) ou para todos
+    (Arquivos de Programas, com administrador), com seletor de pasta e atalho no menu Iniciar;
+  - pergunta a **pasta de redundância**, por padrão `%USERPROFILE%\.wallpaperEditor`, gravada em
+    `HKCU\Software\WallpaperEditor\MirrorFolder`;
+  - verifica se o .NET Desktop Runtime 10 está instalado, e oferece abrir a página de download se faltar;
+  - numa atualização, fecha o app e o companion pelo Restart Manager e inicia o companion de novo, que se registra a
+    partir da pasta instalada se houver um wallpaper dinâmico na tela;
+  - aparece em Configurações → Aplicativos; desinstalar encerra o companion (`--stop-companion`), tira o registro de
+    inicialização e pergunta se apaga os dados. Na pasta de redundância, só apaga o que o app grava ali. Os projetos
+    nunca são apagados;
+  - sem imagens, com o visual padrão do Inno Setup e o ícone do app; sem assinatura
+- [x] **Pasta de redundância** (`DataMirror`): o estado e as cópias dos originais são espelhados a cada gravação, e
+  restaurados de lá se o `%LOCALAPPDATA%` perder o estado
+- [x] Licença **MIT**, em `LICENSE`
+- [x] Um build Debug não se registra para iniciar com o Windows; o companion se registra ao iniciar, para a entrada
+  acompanhar a pasta instalada
 
-- [ ] Repositório no GitHub, com este README e os documentos como estão
-- [ ] CI no GitHub Actions (`windows-latest`): `dotnet build` e `dotnet test`, com avisos como erros, como aqui. Os
-  testes do `Rendering` precisam de WPF, que o runner Windows tem. **Escrito** em `.github/workflows/ci.yml`, com o
-  SDK do `global.json`; os mesmos passos passam nesta máquina, mas o workflow ainda não rodou, porque não há remoto
-- [ ] Versão SemVer em `Directory.Build.props`, mostrada na janela, e um `CHANGELOG.md`
-- [ ] Release a partir de uma tag `v*`: `dotnet publish` framework-dependent num `.zip`, com o hash SHA-256 ao lado.
-  **Escrito** em `.github/workflows/release.yml`: testa, publica com a versão da tag e cria o Release; uma tag com
-  sufixo, como `v0.2.0-beta.1`, vira pré-release. Simulado aqui: um `.zip` de 0,7 MiB, com a versão 0.1.0 no
-  executável, que abre normalmente. Ainda não rodou no GitHub
-- [ ] **Instalador**, para o app e o companion nunca apontarem para `bin` ou `obj`:
-  - instala por usuário em `%LOCALAPPDATA%\Programs\WallpaperEditor`, sem administrador, com atalho no menu Iniciar;
-  - verifica se o .NET Desktop Runtime 10 está instalado, e indica onde baixá-lo se faltar;
-  - numa atualização, fecha o app e o companion antes de trocar os arquivos e reabre o companion se havia um wallpaper
-    dinâmico, regravando o registro de inicialização no caminho instalado;
-  - aparece em Configurações → Aplicativos, e desinstalar fecha o companion, tira o registro de inicialização e
-    pergunta se apaga os dados (`%LOCALAPPDATA%\WallpaperEditor`). Os projetos em Documentos nunca são apagados;
-  - gerado pelo workflow de release junto com o `.zip`. Candidatos: **Inno Setup**, simples e por usuário, ou
-    **MSIX**, que dá identidade de pacote (notificações com botões, tarefa de inicialização nativa) mas exige assinar
-    o pacote
-- [ ] Um build Debug não se registra para iniciar com o Windows, para não deixar uma entrada apontando para o repositório
+**Testado nesta máquina em 2026-11-15**, com o Inno Setup 6.7.3, em modo silencioso e só para o usuário: o instalador
+compila sem avisos (2,6 MiB); ao instalar, o companion inicia da pasta instalada e regrava a entrada de inicialização
+para lá; o app instalado cria o espelho em `.wallpaperEditor` com o `state.json` idêntico; atualizar por cima fecha o
+companion pelo Restart Manager e o inicia de novo; desinstalar o encerra e tira a entrada de inicialização, a
+configuração, o atalho e a pasta, sem tocar nos dados.
 
-**Concluída quando** uma tag gerar o instalador e o `.zip` no Release, e o app instalado por ele publicar um projeto,
-registrar o companion no caminho instalado, e o companion voltar depois de reiniciar. Desinstalar não pode deixar
-processo nem entrada de inicialização para trás.
+**Falta testar:** as telas do assistente na mão (escopo, pasta e pasta de redundância), a pergunta de apagar os dados,
+e instalar para todos os usuários.
+
+**Fica para uma v0.1.x:**
+- [ ] A versão mostrada na janela do app, e um `CHANGELOG.md`
+- [ ] Assinatura de código, quando o projeto público puder usar um programa gratuito para open source, como o da
+  SignPath Foundation
 
 ## Fase 6 — Props interativos
 

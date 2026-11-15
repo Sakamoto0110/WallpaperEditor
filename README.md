@@ -7,12 +7,29 @@ afetar os outros.
 o app fechado nada fica rodando, a não ser o pequeno **companion** enquanto houver um wallpaper dinâmico na tela, para
 usá-lo sem abrir o editor. O wallpaper só muda pelo app.
 
-> **Status: Fase 4 em conferência; próxima, a Fase 5 (distribuição, v0.1.0).** Static e Dynamic funcionam: o editor
+> **Status: v0.1.0, a primeira versão** (o nome WallpaperEditor ainda pode mudar). Static e Dynamic funcionam: o editor
 > compõe imagens, checklists, texto e componentes clicáveis (contador, barra de progresso, alternância), com histórico
 > para reverter, e publica em um monitor; o companion deixa usar o wallpaper sem abrir o editor. Pela frente: mais
 > props, cor e gradientes com curva, e máscaras. Animated existe só como experimento, sem data: o `AnimatedHost` roda
 > por linha de comando, fora da interface, para medir o custo. As fases, e o que falta testar, estão em
 > [docs/06-roadmap.md](docs/06-roadmap.md).
+
+## Instalar
+
+Baixe o `WallpaperEditor-<versão>-setup.exe` na página de Releases. O instalador:
+
+- pergunta se instala **só para você** (em `AppData\Local\Programs`, sem administrador, o padrão) ou **para todos os
+  usuários** (em Arquivos de Programas, com administrador), e deixa trocar a pasta;
+- pergunta a **pasta de redundância**, por padrão `<usuário>\.wallpaperEditor`. O app trabalha em
+  `%LOCALAPPDATA%\WallpaperEditor` e copia para ela o estado de cada monitor e as cópias dos wallpapers originais,
+  restaurando de lá se a pasta do app se perder;
+- confere se o [.NET Desktop Runtime 10](https://dotnet.microsoft.com/download/dotnet/10.0) está instalado.
+
+O instalador ainda **não é assinado**: o Windows mostra "O Windows protegeu o computador", e é preciso clicar em
+"Mais informações" → "Executar assim mesmo". Há também um `.zip` para usar sem instalar. Os dois têm o SHA-256 ao lado.
+
+Desinstalar encerra o companion, tira-o da inicialização do Windows e pergunta se apaga os dados. Os projetos nunca são
+apagados.
 
 ## Compilar e testar
 
@@ -43,8 +60,7 @@ Versões previstas, sem data. Cada fase tem um critério de conclusão verificá
 
 | Versão | Fase | O que traz |
 |---|---|---|
-| — | 1 a 4 | Concluídas: elaboração, fundação, Static e Dynamic, com editor, componentes clicáveis e companion |
-| **v0.1.0** | 5 — Distribuição | Repositório no GitHub, CI com build e testes, release a partir de uma tag, e um **instalador** por usuário, sem administrador, para o app e o companion rodarem de um caminho instalado em vez de `bin` |
+| **v0.1.0** ✔ | 1 a 5 | **Lançada.** Static e Dynamic, com editor, componentes clicáveis e companion; repositório público, CI, release a partir de uma tag, e um **instalador** que pergunta "só para mim" ou "para todos", com pasta de redundância dos dados |
 | **v0.2** | 6 — Props interativos | Rastreador de hábitos, corrente do mês, pips de pomodoro, anel de progresso, seletor de estado, humor e energia, garrafa d'água, placar, meta em valor, dias desde, kanban mínimo, top 3 do dia, frase da vez, estante, pinos sobre imagem |
 | **v0.3** | 7 — Cor e gradientes | Seletor de cor, paleta do projeto e aviso de contraste. Gradientes linear, radial, cônico e de quatro cantos, com **curva por trecho** (suave, *ease*, Bézier cúbica editável), **inclinação** (ponto médio e dureza), degraus, interpolação em OKLab e pontilhado contra faixas em 8 bits |
 | **v0.4** | 8 — Máscaras e cor por máscara | Máscaras por forma, gradiente, outra imagem, faixa de cor e texto. Dentro delas: tingir, matiz e saturação, cor seletiva, duotone, mapa de gradiente e modos de mistura. Sempre sem alterar os arquivos-fonte |
@@ -99,6 +115,9 @@ WallpaperEditor/
 ├─ global.json
 ├─ Directory.Build.props
 ├─ README.md
+├─ LICENSE                               MIT
+├─ .github/workflows/                    CI em cada push; release a partir de uma tag v*
+├─ installer/                            script do instalador (Inno Setup 6)
 ├─ docs/
 ├─ scripts/                              medições repetíveis
 ├─ tools/
@@ -120,4 +139,9 @@ WallpaperEditor/
   topologia recente do desktop do Windows 11, a mesma medida nesta máquina (build 26300); veja
   [docs/04-integracao-windows.md](docs/04-integracao-windows.md).
 - .NET SDK 10.0.403 (já instalado nesta máquina).
+- Para gerar o instalador localmente: [Inno Setup 6](https://jrsoftware.org/isinfo.php). O workflow de release usa o
+  que já vem no runner do GitHub.
 
+## Licença
+
+[MIT](LICENSE). Use, modifique e redistribua à vontade, mantendo o aviso de copyright.

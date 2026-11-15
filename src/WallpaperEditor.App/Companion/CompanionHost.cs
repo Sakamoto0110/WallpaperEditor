@@ -55,10 +55,17 @@ public sealed class CompanionHost : IDisposable
         }
 
         // Started with Windows after the wallpaper was replaced: nothing left to serve, and no reason to start again.
-        if (interactWith is null && ShownProjects().Count == 0)
+        var shown = ShownProjects().Count > 0;
+        if (interactWith is null && !shown)
         {
             _channel.SetStartWithWindows(false);
             return false;
+        }
+
+        // Registered from where it runs now: after an install or an update, the entry follows the new folder.
+        if (shown)
+        {
+            _channel.SetStartWithWindows(true);
         }
 
         _ = Task.Run(() => ListenAsync(_stop.Token));

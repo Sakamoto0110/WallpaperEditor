@@ -177,6 +177,17 @@ Duas categorias, separadas de propósito:
 Os arquivos ficam em `published\`, e não na pasta do projeto, para que mover ou apagar um projeto não quebre o
 que está na tela.
 
+**Espelho.** O que não dá para refazer, o `state.json` e as pastas `original\`, também é copiado para uma pasta de
+redundância, escolhida no instalador e guardada em `HKCU\Software\WallpaperEditor\MirrorFolder`. O padrão é
+`%USERPROFILE%\.wallpaperEditor`. Os PNGs publicados ficam de fora, porque qualquer projeto os renderiza de novo.
+
+- A cópia acontece a cada gravação do estado (`DataMirror`, em `Core.Publishing`), pelo mesmo esquema de arquivo
+  temporário, e mantém os mesmos caminhos relativos, para o `state.json` continuar válido depois de restaurado.
+- O app sempre trabalha no `%LOCALAPPDATA%`. O espelho só é lido quando ali não há um `state.json` utilizável: a pasta
+  foi apagada, ou o arquivo estava danificado e foi posto de lado.
+- Não conseguir gravar no espelho nunca falha uma publicação. Com `--data`, não há espelho, a menos que
+  `--mirror <pasta>` indique um.
+
 Na primeira vez que o app toca em um monitor, o `state.json` guarda o caminho do wallpaper que estava lá, e o app
 **copia o arquivo** para `original\`, antes da troca. Isso permite o comando "restaurar original":
 

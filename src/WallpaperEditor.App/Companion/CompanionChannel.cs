@@ -21,9 +21,20 @@ public sealed class CompanionChannel(string dataRoot, bool isTestData)
 {
     public const string Argument = "--companion";
     public const string InteractArgument = "--interact";
+    public const string StopArgument = "--stop-companion";
 
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string RunValue = "WallpaperEditor";
+
+    /// <summary>
+    /// A build from the repository never touches the startup list: an entry pointing into <c>bin</c> breaks with the
+    /// next clean. Only an installed build registers itself.
+    /// </summary>
+#if DEBUG
+    private static readonly bool IsDebugBuild = true;
+#else
+    private static readonly bool IsDebugBuild = false;
+#endif
 
     private readonly string _key = Convert.ToHexStringLower(
         SHA256.HashData(Encoding.UTF8.GetBytes(Path.GetFullPath(dataRoot).ToUpperInvariant())))[..16];
@@ -53,6 +64,23 @@ public sealed class CompanionChannel(string dataRoot, bool isTestData)
         if (!IsRunning() || !TrySend($"interact {monitor.Value}"))
         {
             Start(InteractArgument, monitor.Value);
+        }
+    }
+
+    /// <summary>
+    /// Ends the companion and takes it off the startup list, waiting a few seconds for it to let go of its files.
+    /// </summary>
+    public void Stop()
+    {
+        SetStartWithWindows(false);
+        if (!IsRunning() || !TrySend("exit"))
+        {
+            return;
+        }
+
+        for (var waited = 0; waited < 5000 && IsRunning(); waited += 100)
+        {
+            Thread.Sleep(100);
         }
     }
 
@@ -121,8 +149,8 @@ public sealed class CompanionChannel(string dataRoot, bool isTestData)
 
     public void SetStartWithWindows(bool enabled)
     {
-        // A test run must never change what starts with Windows.
-        if (IsTestData)
+        // A test run must never change what starts with Windows, and neither must a build from the repository.
+        if (IsTestData || IsDebugBuild)
         {
             return;
         }

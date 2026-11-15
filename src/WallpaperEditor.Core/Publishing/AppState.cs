@@ -54,19 +54,48 @@ public sealed record MonitorAssignment
 }
 
 /// <summary>Reads and writes <c>state.json</c>.</summary>
-public sealed class AppStateStore(string path)
+/// <param name="path">The state file, in the app's data folder.</param>
+/// <param name="mirror">Where a second copy is kept, or null for none, as in tests and runs with <c>--data</c>.</param>
+public sealed class AppStateStore(string path, DataMirror? mirror = null)
 {
     private static readonly JsonSerializerOptions Options = new() { WriteIndented = true };
 
     /// <summary>
     /// Returns an empty state rather than failing if the file cannot be used: a damaged state must not
     /// stop the app from opening. The unreadable file is set aside so nothing is silently overwritten.
+    /// With a mirror, a missing or damaged state comes back from it first.
     /// </summary>
     public AppState Load()
     {
+        var state = TryLoad();
+        if (state is null && mirror?.RestoreIfMissing() == true)
+        {
+            // Once only: a mirrored file that is damaged too is set aside like any other.
+            state = TryLoad();
+        }
+
+        return state ?? new AppState();
+    }
+
+    public void Save(AppState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        // Unique, since the companion process may save at the same moment as the app.
+        var temporary = $"{path}.{Guid.NewGuid():N}.tmp";
+        File.WriteAllText(temporary, JsonSerializer.Serialize(state, Options));
+        File.Move(temporary, path, overwrite: true);
+
+        mirror?.Save();
+    }
+
+    /// <summary>Null if there is no usable file; a damaged one is set aside.</summary>
+    private AppState? TryLoad()
+    {
         if (!File.Exists(path))
         {
-            return new AppState();
+            return null;
         }
 
         try
@@ -87,17 +116,6 @@ public sealed class AppStateStore(string path)
         }
 
         File.Move(path, $"{path}.{DateTime.UtcNow:yyyyMMddHHmmss}.unreadable", overwrite: true);
-        return new AppState();
-    }
-
-    public void Save(AppState state)
-    {
-        ArgumentNullException.ThrowIfNull(state);
-
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        // Unique, since the companion process may save at the same moment as the app.
-        var temporary = $"{path}.{Guid.NewGuid():N}.tmp";
-        File.WriteAllText(temporary, JsonSerializer.Serialize(state, Options));
-        File.Move(temporary, path, overwrite: true);
+        return null;
     }
 }
