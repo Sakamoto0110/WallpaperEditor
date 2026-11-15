@@ -48,6 +48,12 @@ Observações que viram requisitos:
   um fantasma.
 - **Coordenadas negativas são normais** aqui, nos dois eixos. Nenhum cálculo pode supor origem
   em (0, 0).
+- **A lista pode trazer uma entrada sem caminho.** **[Medido em 2026-11-07]** `GetMonitorDevicePathAt` devolveu um
+  caminho vazio em duas execuções seguidas, sem motivo identificado, e em outras devolveu só os 5 acima. Uma entrada
+  assim é ignorada, pois não identifica monitor nenhum.
+- **Um monitor pode sumir da lista.** **[Medido em 2026-11-06]** O ultrawide deixou de aparecer como ativo por um
+  tempo, e o vertical passou a ser o primário, em (0, 0). Voltou sem nenhuma ação do app, que não altera a configuração
+  de monitores; a causa não foi identificada. Por isso nenhuma posição fica guardada.
 
 Essas telas são um caso de teste ideal: três proporções, uma rotação e origem negativa.
 
@@ -225,25 +231,39 @@ Progman           exstyle=0x200080  rect=(-1920,-452,3640,1468)   ← bit 0x2000
    └─ SysListView32
 ```
 
-**[Medido]** Na leitura, **não há nenhum `WorkerW` filho do `Progman`**. Os `WorkerW` existentes
-são de nível superior, invisíveis, e quase todos com 136×39. Não enviamos `0x052C` (a sondagem é
-somente leitura), então ainda não sabemos o que essa mensagem faz nesta build. Teste A1 do
-roadmap.
+**[Medido]** Até alguém enviar `0x052C`, **não há nenhum `WorkerW` filho do `Progman`**. Os `WorkerW` existentes
+são de nível superior, invisíveis, e quase todos com 136×39.
 
 ### Como anexar na topologia elevada
 
-Procedimento relatado pelo projeto FeatherWall **[Terceiro, não confirmado aqui]**:
+**[Medido em 2026-11-07]** Procedimento que funcionou nesta build (26300), com verificação por amostragem de pixels:
 
 1. Detectar: `GetWindowLongPtr(progman, GWL_EXSTYLE) & WS_EX_NOREDIRECTIONBITMAP`.
-2. Trocar o estilo da janela de `WS_POPUP` para `WS_CHILD`, sem combinar os dois.
-3. `SetParent` no próprio `Progman`.
-4. `SetWindowPos` para ficar logo abaixo de `SHELLDLL_DefView`.
-5. Mandar o `WorkerW` do shell, se houver, para `HWND_BOTTOM`.
+2. **Enviar `0x052C` ao `Progman`**, se ele ainda não tiver um `WorkerW` filho. O wallpaper passa para esse `WorkerW`.
+3. Mandar o `WorkerW` para `HWND_BOTTOM`.
+4. Trocar o estilo da janela de `WS_POPUP` para `WS_CHILD`, sem combinar os dois, e acrescentar `WS_DISABLED`.
+5. `SetParent` no próprio `Progman`.
+6. `SetWindowPos` para ficar logo abaixo de `SHELLDLL_DefView`.
 
-O mesmo documento relata que, nessa topologia, só o conteúdo apresentado via **DirectComposition
-com swap chain flip-model** é composto; GDI, swap chains blt-model e `UpdateLayeredWindow` não
-aparecem. Esse detalhe é decisivo na escolha da reprodução: ver
-[ADR 0006](adr/0006-reproducao-de-video.md).
+| Variação | Resultado (15 pontos do monitor vertical) |
+|---|---|
+| Abaixo dos ícones, **sem** `0x052C` | Invisível: os pixels não mudam. A janela existe, visível e no retângulo certo, mas a camada dos ícones a tapa |
+| Acima dos ícones, sem `0x052C` | 15 de 15 na cor da janela. Prova que o caminho até a tela funciona |
+| Abaixo dos ícones, **com** `0x052C` | 15 de 15 na cor da janela. Confirmado na tela pelo usuário: ícones por cima, clique e menu de contexto funcionando |
+
+A descrição do projeto FeatherWall **[Terceiro]** para esta topologia não cita o `0x052C` e fala em um `WorkerW` do shell
+como se ele já existisse. Aqui, essa diferença decide se a janela aparece ou não.
+
+**O `WorkerW` fica.** **[Medido]** Depois que o host fecha, ele continua existindo. O wallpaper segue normal, com alguns
+tons até 1 nível diferentes (`F6ECC8` passa a `F6ECC9`), invisíveis a olho nu. **[Medido]** Reiniciar o Explorer remove o
+`WorkerW`, e os tons voltam exatamente aos valores originais.
+
+**[Medido]** Com a janela anexada, nesta topologia, **DirectComposition com swap chain flip-model** chega à tela.
+GDI, swap chains blt-model e `UpdateLayeredWindow` não aparecem, segundo o mesmo projeto **[Terceiro, não testado]**.
+Ver [ADR 0006](adr/0006-reproducao-de-video.md).
+
+**Como verificar sem depender de alguém olhando:** `GetPixel` na tela enxerga esse conteúdo, mas só se nenhuma janela
+cobrir o ponto. Uma leitura igual antes e depois pode significar apenas que há uma janela por cima.
 
 ### Posicionar em um monitor
 
@@ -263,15 +283,16 @@ resultado esperado em teste.
 
 | Evento | Comportamento | Resposta |
 |---|---|---|
-| Explorer reinicia | Janelas do desktop são recriadas **[Terceiro]** | Ouvir `TaskbarCreated` e `EVENT_OBJECT_DESTROY`, depois reanexar |
+| Explorer reinicia | **[Medido]** `Progman` e `SHELLDLL_DefView` são recriados, e o `WorkerW` some. `IDesktopWallpaper` falha com `REGDB_E_CLASSNOTREG` enquanto o Explorer está fora, porque é ele quem serve essa interface | Tratar a falha como "ainda não", e reanexar por `TaskbarCreated` e pelo `WM_DESTROY` da própria janela (A2) |
 | `SPI_SETDESKWALLPAPER` | Destrói o `WorkerW` na topologia elevada **[Terceiro]** | O host evita esta chamada durante a reprodução |
-| `IDesktopWallpaper::SetWallpaper` em **outro** monitor com vídeo rodando | **Desconhecido** | Teste A3. Importa muito: é o uso normal do app |
+| `IDesktopWallpaper::SetWallpaper` com vídeo rodando | **[Medido]** Recria o `WorkerW` logo abaixo dos ícones, por cima do vídeo. O processo e a janela continuam vivos | O host confere a ordem uma vez por segundo e se recoloca. Vídeo coberto por cerca de 1 s a cada troca (teste A3) |
 | Bloqueio da sessão | Handles podem mudar **[Terceiro]** | Revalidar ao desbloquear |
 | Mudança de monitores ou resolução | Retângulos mudam | Ouvir `WM_DISPLAYCHANGE` e reposicionar |
 
 ## Como chamar essas APIs em C#
 
-Tudo fica em `WallpaperEditor.Platform.Windows`:
+Tudo o que o app usa fica em `WallpaperEditor.Platform.Windows`. A anexação ao desktop fica no próprio `AnimatedHost`,
+para sair junto se o experimento for reprovado:
 
 - **[CsWin32](https://github.com/microsoft/CsWin32)** gera as declarações a partir de uma lista
   (`NativeMethods.txt`). Evita assinaturas escritas à mão, uma fonte comum de bugs sutis.

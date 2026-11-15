@@ -1,6 +1,10 @@
 # ADR 0006 — `MediaPlayer` do Windows + DirectComposition no modo animado
 
-**Status:** Proposta, a confirmar pelos testes A1 a A3 · **Data:** 2026-11-06
+**Status:** Aceita para o experimento; A1 e A3 confirmados em 2026-11-07, A2 pendente · **Data:** 2026-11-06
+
+**[Medido]** A reprodução funcionou como descrita, a 30 fps, sem nenhum erro na cópia de quadros. A única diferença em
+relação ao relato de terceiro está na anexação: nesta build é preciso enviar `0x052C`. Ver
+[04 — Integração com o Windows](../04-integracao-windows.md#como-anexar-na-topologia-elevada).
 
 ## Contexto
 
@@ -19,7 +23,7 @@ Um processo **sem interface**, que usa:
 - **`Windows.Media.Playback.MediaPlayer`** em modo *frame server*
   (`IsVideoFrameServerEnabled = true`), com `IsLoopingEnabled`, para decodificar via hardware.
 - **Swap chain flip-model + DirectComposition** para apresentar, com a cópia de quadro feita por
-  `CopyFrameToVideoSurface`.
+  `CopyFrameToVideoSurface` direto no back buffer, sem textura intermediária, que custaria mais VRAM.
 - **Vortice.Windows** para as interfaces de Direct3D 11, DXGI e DirectComposition em C#.
 
 ## Por quê

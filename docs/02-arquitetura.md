@@ -27,16 +27,16 @@ graph TD
     Rendering --> Core
     Platform --> Core
     Host --> Platform
-    App -. "inicia e encerra o processo" .-> Host
+    App -. "inicia e encerra o processo (ainda não ligado)" .-> Host
 ```
 
 | Projeto | Responsabilidade | Não pode |
 |---|---|---|
 | **Core** | Tipos (`Monitor`, `Project`, `Revision`, `Document`, itens), regras de histórico, leitura e escrita da pasta de projeto, interfaces (`IWallpaperService`, `IMonitorService`, `IWallpaperRenderer`) | Referenciar WPF, Win32 ou qualquer API de imagem |
 | **Rendering** | Transformar um documento em bitmap e PNG; ajustar uma imagem ao monitor | Saber o que é um monitor do Windows; recebe apenas tamanhos em pixels |
-| **Platform.Windows** | Falar com o Windows: enumerar monitores, aplicar wallpaper, ler estado, encontrar a janela do desktop | Conter regra de negócio |
+| **Platform.Windows** | Falar com o Windows: enumerar monitores, aplicar wallpaper, ler estado | Conter regra de negócio |
 | **App** | Janelas, editor, view models, composição das dependências | Chamar Win32 diretamente |
-| **AnimatedHost** | Reproduzir um vídeo atrás dos ícones em um monitor | Depender do App, do Rendering ou de WPF |
+| **AnimatedHost** | Anexar uma janela ao desktop e reproduzir um vídeo atrás dos ícones em um monitor | Depender do App, do Rendering ou de WPF |
 
 Fora de `src/`, `tools/WallpaperEditor.Diagnostics` valida os comportamentos do Windows e mede custos, para que
 tudo possa ser repetido em uma build futura. Ela usa o mesmo `Platform.Windows`, e só escreve no monitor vertical.

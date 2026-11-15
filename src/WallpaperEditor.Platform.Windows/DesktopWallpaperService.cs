@@ -25,7 +25,15 @@ public sealed unsafe class DesktopWallpaperService : IMonitorService, IWallpaper
         {
             PWSTR path;
             api.GetMonitorDevicePathAt(i, &path);
-            var id = new MonitorId(TakeString(path));
+            var value = TakeString(path);
+
+            // Measured: the list can hold an entry with an empty path, which is no monitor at all.
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                continue;
+            }
+
+            var id = new MonitorId(value);
             candidates.Add(new MonitorCandidate(id, ReadBounds(api, id)));
         }
 

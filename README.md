@@ -6,9 +6,10 @@ afetar os outros.
 **Extremamente leve, e não um Wallpaper Engine:** o Windows recebe uma imagem estática comum, e com
 o app fechado nada fica rodando. O wallpaper só muda pelo app.
 
-> **Status: Fase 4 em conferência.** Static e Dynamic funcionam: o editor compõe imagens, checklists e texto, com histórico
-> para reverter, e publica em um monitor. Animated ainda não existe. O estado de cada fase, e o que falta testar, está
-> em [docs/06-roadmap.md](docs/06-roadmap.md).
+> **Status: Fase 4 em conferência, Fase 5 em andamento.** Static e Dynamic funcionam: o editor compõe imagens, checklists
+> e texto, com histórico para reverter, e publica em um monitor. Animated existe só como experimento: o `AnimatedHost`
+> roda por linha de comando, fora da interface, para medir o custo. O estado de cada fase, e o que falta testar, está em
+> [docs/06-roadmap.md](docs/06-roadmap.md).
 
 ## Compilar e testar
 
@@ -70,7 +71,7 @@ desktop do Windows não é documentada:
 
 ## Layout do repositório
 
-Segue a convenção dos outros projetos em `dev/`. `AnimatedHost` ainda não existe: chega na Fase 5.
+Segue a convenção dos outros projetos em `dev/`.
 
 ```text
 WallpaperEditor/

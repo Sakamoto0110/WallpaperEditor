@@ -99,13 +99,14 @@ Em duas etapas, com o motor primeiro:
 criar um projeto, publicar, alterar, publicar de novo, reverter, restaurar um item removido, fechar, mover a
 pasta e reabrir com tudo intacto. Com o app fechado, nenhum processo fica rodando.
 
-## Fase 5 — Experimento do modo animado
+## Fase 5 — Experimento do modo animado (em andamento)
 
-- Testes de viabilidade A1 a A3. Uma falha aqui encerra a fase
-- `AnimatedHost` mínimo: um vídeo, um monitor, loop
-- Script de coleta e vídeos de teste
-- Rodar a matriz e preencher os [resultados](05-experimento-animado.md#resultados)
-- Tomar a decisão pelo [critério definido](05-experimento-animado.md#critério-de-decisão)
+- [x] `AnimatedHost` mínimo: um vídeo, um monitor, loop
+- [x] Script de coleta (`scripts/measure-animated.ps1`) e vídeos de teste (`scripts/make-test-videos.ps1`)
+- [x] Testes de viabilidade A1 e A3
+- [ ] Teste A2: reiniciar o Explorer
+- [ ] Rodar a matriz em condição controlada e preencher os [resultados](05-experimento-animado.md#resultados)
+- [ ] Tomar a decisão pelo [critério definido](05-experimento-animado.md#critério-de-decisão)
 
 **Concluída quando** houver um relatório com números e uma decisão registrada em um novo ADR.
 
@@ -129,11 +130,15 @@ diagnóstico).
 
 ### Animated (Fase 5)
 
-| # | Teste | Resultado esperado | Se falhar |
+| # | Teste | Resultado | Situação |
 |---|---|---|---|
-| A1 | Procedimento de anexação na topologia elevada, com e sem `0x052C` | Janela colorida atrás dos ícones, no monitor certo | Encerrar o experimento e registrar o motivo |
-| A2 | Reiniciar o Explorer com a janela anexada | Reanexa sozinha | Investigar; bloqueia a aprovação |
-| A3 | `SetWallpaper` em outro monitor com o vídeo rodando | Vídeo continua, e o outro monitor muda | Reanexar após cada publicação; se não houver como, documentar a limitação |
+| A1 | Procedimento de anexação na topologia elevada, com e sem `0x052C` | Sem a mensagem, a janela fica invisível. Com ela, cobre os 15 pontos amostrados do monitor certo, sem afetar o Full HD; na tela, ícones por cima e cliques funcionando | **Passou** |
+| A2 | Reiniciar o Explorer com a janela anexada | **Primeira tentativa:** o host caiu, porque a consulta de monitores falha com o Explorer fora do ar. O Explorer e o wallpaper voltaram normalmente. Corrigido, sem novo teste; bloqueia a aprovação se falhar | **Falhou; refazer** |
+| A3 | `SetWallpaper` com o vídeo rodando | O `WorkerW` é recriado por cima do vídeo; o host se recoloca em cerca de 1 s, e o wallpaper muda por baixo | **Passou, com ajuste** |
+
+**Limite do A3:** com pixels, foi testado trocando o wallpaper do próprio monitor do vídeo, porque os testes só escrevem
+no vertical. Com o vídeo em outro monitor, a tela estava coberta por uma janela: ali se confirmou o processo vivo e o
+`WorkerW` recriado, mas não a imagem.
 
 ## Depois
 

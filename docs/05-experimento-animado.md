@@ -46,15 +46,14 @@ mudar bastante esse número. O motivo de escrevê-la é poder perceber se a medi
 
 ## O que medir
 
-Medir só o `AnimatedHost` **subestima o custo**, porque o `dwm.exe` também pode alocar superfícies
-para compor a janela. O número que importa é a **variação total no adaptador**. A medição por
-processo serve para explicar o resultado.
+O número que importa é a **variação total no adaptador**. A medição por processo serve para explicar o resultado, mas
+não deve ser somada: **[Medido]** o `dwm` sobe 17 MiB, e o adaptador sobe só o valor do host.
 
 | Métrica | Fonte |
 |---|---|
 | VRAM total da GPU | `\GPU Adapter Memory(*)\Dedicated Usage` **[Medido: contador disponível]** |
 | VRAM por processo (`AnimatedHost`, `dwm`, `explorer`) | `\GPU Process Memory(pid_*)\Dedicated Usage` e `Shared Usage` |
-| Uso do decodificador e 3D | `\GPU Engine(pid_*engtype_VideoDecode)\Utilization Percentage` e o equivalente de `3D` |
+| Uso do decodificador e 3D | `\GPU Engine(pid_*engtype_Video*)\Utilization Percentage` e o equivalente de `3D`. **[Medido]** Nesta GPU, o motor se chama `Video Codec Engine` |
 | CPU e memória do host | `\Process(*)\% Processor Time`, `Private Bytes` |
 | Fluidez | Quadros descartados, informados pelo próprio host |
 | Consumo de energia da GPU | Se o software da AMD expuser de forma simples. Opcional |
@@ -92,9 +91,9 @@ Em vez de todas as combinações, um cenário de referência e variações de um
 | S1 | Ultrawide | 3840×1620, reduzido na tela | H.264 | 30 | 25 Mbps |
 | T1 | Os 3 monitores ao mesmo tempo | nativa de cada um | H.264 | 30 | 10 Mbps |
 
-Os vídeos de teste são derivados de **uma mesma fonte**, para a comparação ser justa, e os comandos
-exatos do `ffmpeg` são registrados junto com os resultados. O `.mp4` é só o contêiner: o host deve
-reportar o codec de verdade.
+Os vídeos de teste vêm de **uma mesma fonte**, para a comparação ser justa: um gerador determinístico embutido no host,
+codificado pelo próprio Windows (`scripts/make-test-videos.ps1`), sem instalar nada. O AV1 (C2) fica de fora, porque a
+API usada não oferece esse perfil de codificação. O `.mp4` é só o contêiner: o host reporta o codec de verdade no log.
 
 ## Critério de decisão
 
@@ -123,4 +122,62 @@ justamente o recurso que este experimento quer medir.
 
 ## Resultados
 
-*Ainda não medido. Esta seção será preenchida ao concluir a Fase 5.*
+**Preliminares.** **[Medido em 2026-11-07]** Medição reduzida, com o PC em uso e sem a condição controlada do protocolo:
+fases de 12 a 20 s de linha de base e de 20 a 40 s de carga, em build Release, sempre no monitor vertical (1080×1920),
+onde os testes podem rodar. Um vídeo de outro formato aparece esticado. Ainda falta rodar a matriz na condição
+controlada, no monitor certo de cada cenário.
+
+| Vídeo | Resolução | Codec | FPS | Bitrate | Host | **Adaptador** | CPU do host | Decodificador |
+|---|---|---|---|---|---|---|---|---|
+| M2 | 1080×1920 | H.264 | 30 | 10 Mbps | 137,4 MiB | **+134 MiB** | 0,2% | não lido |
+| VF1 | 1080×1920 | H.264 | **60** | 20 Mbps | 137,4 MiB | **+137 MiB** | 0,3% | não lido |
+| VB1 | 1080×1920 | H.264 | 30 | **40 Mbps** | 137,4 MiB | **+137 MiB** | 0,3% | não lido |
+| VC1 | 1080×1920 | **HEVC** | 30 | 10 Mbps | **68,1 MiB** | **+68 MiB** | 0,3% | não lido |
+| M1 | **1920×1080** | H.264 | 30 | 10 Mbps | 133,1 MiB | **+137 MiB** | 0,1% | 7,5% |
+| R | **2560×1080** | H.264 | 30 | 10 Mbps | 163,1 MiB | **+161 MiB** | 0,1% | 8,5% |
+
+O vídeo manteve 30 ou 60 fps em todos os casos, exceto o primeiro intervalo de 10 s (29 fps). A memória privada do host
+ficou entre 99 e 152 MiB, além da VRAM.
+
+**Não some os processos.** O `dwm` sobe 17 MiB em todos os cenários, mas o total do adaptador sobe só o valor do host. O
+valor bate com os dois buffers da swap chain (cerca de 16 MiB), contados nos dois processos. **[Hipótese]** É a mesma memória.
+
+### Hipóteses
+
+| # | Situação | O que foi visto |
+|---|---|---|
+| H1 | **Provavelmente refutada** | R em H.264 chegou a 163 MiB no host, tocando no vertical. **[Hipótese]** No ultrawide, a swap chain maior soma cerca de 5 MiB, perto de 168 MiB, acima dos 150 |
+| H2 | **Confirmada em parte** | Bitrate e FPS **não mudam nada** (10 a 40 Mbps, 30 a 60 fps). O codec muda muito: HEVC usa **metade** do H.264. Por resolução, cerca de +25 MiB de 2,07 para 2,76 MP |
+| H3 | **Confirmada** | Pausado, o host continua com a mesma VRAM. Só encerrar libera, e o adaptador volta à linha de base |
+| H4 | **Não testada** | Exige vídeo nos 3 monitores |
+| H5 | **Confirmada** | CPU de 0,1% a 0,3% do total de 16 núcleos lógicos, no pior percentil 95 0,8%. A decodificação é por hardware: 7,5% a 8,5% no `Video Codec Engine` |
+
+A estimativa inicial de 40 a 84 MiB só valeu para HEVC. O H.264 custou quase o dobro, por uma razão não investigada.
+
+### Critérios até agora
+
+| Critério | Situação |
+|---|---|
+| Viabilidade | A1 e A3 passaram; **A2 falhou na primeira tentativa** e foi corrigido, mas ainda precisa ser refeito |
+| VRAM (R ≤ 150 MiB) | **Provavelmente reprovado em H.264**, por cerca de 10%. Falta medir no ultrawide. O limite foi fixado antes de medir e não será ajustado depois |
+| CPU (R ≤ 5%) | **Aprovado** com folga, nesta medição curta |
+| Estabilidade (1 hora, reiniciar o Explorer) | **Não testada** |
+
+Se isso se confirmar, a decisão pelo critério é **manter experimental, atrás de um aviso**. O HEVC ficaria abaixo do limite
+também no ultrawide **[Hipótese]** (cenário C1), mas o critério foi definido sobre o cenário R, em H.264.
+
+### Como refazer
+
+```bash
+dotnet build src/WallpaperEditor.AnimatedHost -c Release
+```
+
+```bash
+pwsh scripts/make-test-videos.ps1 -OutDir C:/temp/videos
+```
+
+```bash
+pwsh scripts/measure-animated.ps1 -Video C:/temp/videos/R.mp4 -OutDir C:/temp/results -Monitor "<device path>"
+```
+
+Sem parâmetros de duração, o script segue o protocolo inteiro, com cerca de 20 minutos por cenário.

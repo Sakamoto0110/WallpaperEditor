@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/WallpaperEditor.AnimatedHost/WallpaperEditor.AnimatedHost.csproj" />
     <Project Path="src/WallpaperEditor.App/WallpaperEditor.App.csproj" />
     <Project Path="src/WallpaperEditor.Core/WallpaperEditor.Core.csproj" />
     <Project Path="src/WallpaperEditor.Platform.Windows/WallpaperEditor.Platform.Windows.csproj" />
