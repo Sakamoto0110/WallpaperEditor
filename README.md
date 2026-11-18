@@ -7,7 +7,7 @@ afetar os outros.
 o app fechado nada fica rodando, a não ser o pequeno **companion** enquanto houver um wallpaper dinâmico na tela, para
 usá-lo sem abrir o editor. O wallpaper só muda pelo app.
 
-> **Status: v0.1.0, a primeira versão** (o nome WallpaperEditor ainda pode mudar). Static e Dynamic funcionam: o editor
+> **Status: v0.1.1** (o nome WallpaperEditor ainda pode mudar). Static e Dynamic funcionam: o editor
 > compõe imagens, checklists, texto e componentes clicáveis (contador, barra de progresso, alternância), com histórico
 > para reverter, e publica em um monitor; o companion deixa usar o wallpaper sem abrir o editor. Pela frente: mais
 > props, cor e gradientes com curva, e máscaras. Animated existe só como experimento, sem data: o `AnimatedHost` roda
@@ -62,6 +62,7 @@ Versões previstas, sem data. Cada fase tem um critério de conclusão verificá
 | Versão | Fase | O que traz |
 |---|---|---|
 | **v0.1.0** ✔ | 1 a 5 | **Lançada.** Static e Dynamic, com editor, componentes clicáveis e companion; repositório público, CI, release a partir de uma tag, e um **instalador** que pergunta "só para mim" ou "para todos", com pasta de redundância dos dados |
+| **v0.1.1** ✔ | Ajustes | **Lançada.** Girar e espelhar a imagem, no estático e no dinâmico (fundo e camadas), o fundo como camada selecionável, espelhar arrastando um lado além do outro, e cursores de redimensionar e de rotação |
 | **v0.2** | 6 — Props interativos | Rastreador de hábitos, corrente do mês, pips de pomodoro, anel de progresso, seletor de estado, humor e energia, garrafa d'água, placar, meta em valor, dias desde, kanban mínimo, top 3 do dia, frase da vez, estante, pinos sobre imagem |
 | **v0.3** | 7 — Cor e gradientes | Seletor de cor, paleta do projeto e aviso de contraste. Gradientes linear, radial, cônico e de quatro cantos, com **curva por trecho** (suave, *ease*, Bézier cúbica editável), **inclinação** (ponto médio e dureza), degraus, interpolação em OKLab e pontilhado contra faixas em 8 bits |
 | **v0.4** | 8 — Máscaras e cor por máscara | Máscaras por forma, gradiente, outra imagem, faixa de cor e texto. Dentro delas: tingir, matiz e saturação, cor seletiva, duotone, mapa de gradiente e modos de mistura. Sempre sem alterar os arquivos-fonte |

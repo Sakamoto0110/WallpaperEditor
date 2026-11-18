@@ -26,6 +26,7 @@ um experimento, e fica por último.
 |---|---|---|
 | 1 a 4 | v0.1.0 | Concluídas |
 | 5 — Distribuição | v0.1.0 | **Lançada**; o nome ainda pode mudar |
+| Ajustes de edição | v0.1.1 | **Lançada**: girar e espelhar, fundo como camada, cursores |
 | 6 — Props interativos | v0.2 | A fazer |
 | 7 — Cor e gradientes | v0.3 | A fazer |
 | 8 — Máscaras e cor por máscara | v0.4 | A fazer |
@@ -193,6 +194,18 @@ e instalar para todos os usuários.
 - [ ] A versão mostrada na janela do app, e um `CHANGELOG.md`
 - [ ] Assinatura de código, quando o projeto público puder usar um programa gratuito para open source, como o da
   SignPath Foundation
+
+### v0.1.1 — Girar e espelhar
+
+Lançada em 2026-11-17, a partir de pedidos feitos usando a v0.1.0:
+
+- [x] Girar 90° para os dois lados e 180°, e espelhar na horizontal e na vertical: na tela de monitores, para um
+  wallpaper estático, e no editor, para o fundo e para as camadas de imagem. Os espelhos agem sobre o que se vê, e
+  uma imagem girada se ajusta pelo tamanho já girado
+- [x] O fundo é a última camada da lista; selecioná-lo mostra a imagem, o ajuste e a orientação
+- [x] Arrastar um lado ou canto de uma imagem além do oposto continua do outro lado, espelhando-a, numa revisão só
+- [x] Cursores de seta dupla diagonal nos cantos e horizontal ou vertical nos lados, girando com o item; a seta de
+  quatro pontas só para mover; um lado pode ser pego em qualquer ponto da linha; cursor de rotação na alça de girar
 
 ## Fase 6 — Props interativos
 
