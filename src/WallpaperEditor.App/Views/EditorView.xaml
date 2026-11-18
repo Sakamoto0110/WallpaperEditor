@@ -95,44 +95,6 @@
                                Text="Na pré-visualização, clique nas tarefas, nos botões e na alternância, ou arraste a barra. O wallpaper só muda em Atualizar wallpaper."
                                TextWrapping="Wrap" />
 
-                    <TextBlock Margin="0,16,0,0"
-                               Style="{StaticResource Heading}"
-                               Text="Fundo" />
-                    <TextBlock Margin="0,2,0,6"
-                               Opacity="0.75"
-                               FontSize="12"
-                               Text="{Binding BackgroundName}"
-                               TextTrimming="CharacterEllipsis" />
-                    <UniformGrid Columns="2">
-                        <Button Margin="0,0,4,0"
-                                HorizontalAlignment="Stretch"
-                                Command="{Binding ChangeBackgroundCommand}"
-                                Content="Trocar..." />
-                        <ComboBox Margin="4,0,0,0"
-                                  HorizontalAlignment="Stretch"
-                                  AutomationProperties.Name="Ajuste do fundo"
-                                  DisplayMemberPath="Label"
-                                  ItemsSource="{Binding FitOptions}"
-                                  SelectedValue="{Binding BackgroundFit}"
-                                  SelectedValuePath="Mode" />
-                    </UniformGrid>
-                    <views:OrientationButtons Margin="0,8,0,0" />
-                    <TextBlock Margin="0,4,0,0"
-                               Opacity="0.75"
-                               FontSize="12"
-                               Text="{Binding BackgroundOrientationNote}"
-                               TextWrapping="Wrap">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Style.Triggers>
-                                    <Trigger Property="Text" Value="{x:Null}">
-                                        <Setter Property="Visibility" Value="Collapsed" />
-                                    </Trigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
-
                     <TextBlock Margin="0,16,0,6"
                                Style="{StaticResource Heading}"
                                Text="Camadas" />
@@ -148,6 +110,46 @@
                             </Style>
                         </ListBox.ItemContainerStyle>
                     </ListBox>
+
+                    <!-- Background, picked in the list -->
+                    <StackPanel Margin="0,16,0,0" Visibility="{Binding IsBackgroundSelected, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Style="{StaticResource Heading}" Text="Fundo" />
+                        <TextBlock Margin="0,2,0,6"
+                                   Opacity="0.75"
+                                   FontSize="12"
+                                   Text="{Binding BackgroundName}"
+                                   TextTrimming="CharacterEllipsis" />
+                        <UniformGrid Columns="2">
+                            <Button Margin="0,0,4,0"
+                                    HorizontalAlignment="Stretch"
+                                    Command="{Binding ChangeBackgroundCommand}"
+                                    Content="Trocar..." />
+                            <ComboBox Margin="4,0,0,0"
+                                      HorizontalAlignment="Stretch"
+                                      AutomationProperties.Name="Ajuste do fundo"
+                                      DisplayMemberPath="Label"
+                                      ItemsSource="{Binding FitOptions}"
+                                      SelectedValue="{Binding BackgroundFit}"
+                                      SelectedValuePath="Mode" />
+                        </UniformGrid>
+                        <TextBlock Style="{StaticResource Caption}" Text="Orientação" />
+                        <views:OrientationButtons />
+                        <TextBlock Margin="0,4,0,0"
+                                   Opacity="0.75"
+                                   FontSize="12"
+                                   Text="{Binding BackgroundOrientationNote}"
+                                   TextWrapping="Wrap">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Style.Triggers>
+                                        <Trigger Property="Text" Value="{x:Null}">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </StackPanel>
 
                     <!-- Selected item -->
                     <StackPanel Margin="0,16,0,0" Visibility="{Binding HasSelection, Converter={StaticResource BoolToVisibility}}">
@@ -208,16 +210,12 @@
                                     Maximum="100"
                                     Minimum="0"
                                     Value="{Binding ItemOpacity, Delay=300}" />
-                            <UniformGrid Margin="0,8,0,0" Columns="2">
-                                <Button Margin="0,0,4,0"
-                                        HorizontalAlignment="Stretch"
-                                        Command="{Binding RealSizeCommand}"
-                                        Content="Tamanho real (100%)" />
-                                <Button Margin="4,0,0,0"
-                                        HorizontalAlignment="Stretch"
-                                        Command="{Binding MirrorCommand}"
-                                        Content="Espelhar" />
-                            </UniformGrid>
+                            <TextBlock Style="{StaticResource Caption}" Text="Orientação" />
+                            <views:OrientationButtons />
+                            <Button Margin="0,8,0,0"
+                                    HorizontalAlignment="Stretch"
+                                    Command="{Binding RealSizeCommand}"
+                                    Content="Tamanho real (100%)" />
                             <TextBlock Margin="0,6,0,0"
                                        FontSize="12"
                                        Opacity="0.85"

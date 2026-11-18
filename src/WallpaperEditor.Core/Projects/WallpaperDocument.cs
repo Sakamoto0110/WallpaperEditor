@@ -56,6 +56,10 @@ public sealed record ImageItem : DocumentItem
 
     /// <summary>Flipped left to right, before the rotation is applied.</summary>
     public bool Mirrored { get; init; }
+
+    /// <summary>Flipped top to bottom, before the rotation is applied. Left out of the file when false.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool MirroredVertically { get; init; }
 }
 
 /// <summary>An item made of text on a panel, which shares its look with every other such item.</summary>

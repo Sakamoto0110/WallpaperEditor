@@ -93,16 +93,17 @@ public static class DocumentPainter
 
         if (bitmap is not null)
         {
-            if (item.Mirrored)
+            var flipped = item.Mirrored || item.MirroredVertically;
+            if (flipped)
             {
-                context.PushTransform(new ScaleTransform(-1, 1, width / 2, 0));
+                context.PushTransform(new ScaleTransform(item.Mirrored ? -1 : 1, item.MirroredVertically ? -1 : 1, width / 2, height / 2));
             }
 
             context.PushOpacity(item.Opacity);
             context.DrawImage(bitmap, area);
             context.Pop();
 
-            if (item.Mirrored)
+            if (flipped)
             {
                 context.Pop();
             }

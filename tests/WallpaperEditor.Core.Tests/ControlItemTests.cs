@@ -196,6 +196,40 @@ public sealed class ControlItemTests : IDisposable
     }
 
     [Fact]
+    public void Mirroring_a_turned_image_turns_it_the_other_way_so_the_screen_shows_a_mirror()
+    {
+        var picture = Path.Combine(_root, "gato.png");
+        File.WriteAllText(picture, "image");
+        var editor = NewEditor();
+        var image = editor.AddImage(picture, SomeRect);
+        editor.RotateItem(image.Id, 30);
+
+        editor.MirrorItem(image.Id, vertically: true);
+        var label = editor.Project.ReadRevision(editor.Project.Head).Change.Label;
+        var mirrored = editor.Find<ImageItem>(image.Id)!;
+
+        Assert.Equal("Espelhou a imagem gato.png na vertical", label);
+        Assert.True(mirrored.MirroredVertically);
+        Assert.False(mirrored.Mirrored);
+        Assert.Equal(330, mirrored.Rotation);
+    }
+
+    [Theory]
+    [InlineData(90, 90)]
+    [InlineData(-90, 270)]
+    [InlineData(180, 180)]
+    public void Rotating_an_item_adds_to_its_angle(double degrees, double expected)
+    {
+        var editor = NewEditor();
+        var list = editor.AddChecklist("Hoje", SomeRect);
+
+        editor.RotateItem(list.Id, degrees);
+
+        Assert.Equal(expected, editor.Find<ChecklistItem>(list.Id)!.Rotation);
+        Assert.StartsWith("Girou a checklist", editor.Project.ReadRevision(editor.Project.Head).Change.Label, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void A_switch_state_cannot_have_empty_text()
     {
         var editor = NewEditor();

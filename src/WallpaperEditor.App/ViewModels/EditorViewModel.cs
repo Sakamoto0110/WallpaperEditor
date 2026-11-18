@@ -105,6 +105,10 @@ public sealed partial class EditorViewModel : ObservableObject, IDisposable
     private CancellationTokenSource? _thumbnailCancellation;
     private bool _syncing;
     private bool _refreshingItems;
+    private bool _selecting;
+
+    /// <summary>The row of the background in the list of layers. Item ids are hexadecimal, so none looks like it.</summary>
+    private const string BackgroundRowId = "#fundo";
 
     public EditorViewModel(
         ProjectFolder project,
@@ -218,9 +222,14 @@ public sealed partial class EditorViewModel : ObservableObject, IDisposable
     [NotifyCanExecuteChangedFor(nameof(BringForwardCommand))]
     [NotifyCanExecuteChangedFor(nameof(SendBackwardCommand))]
     [NotifyCanExecuteChangedFor(nameof(RealSizeCommand))]
-    [NotifyCanExecuteChangedFor(nameof(MirrorCommand))]
+    [NotifyCanExecuteChangedFor(nameof(OrientCommand))]
     [NotifyCanExecuteChangedFor(nameof(AddEntryCommand))]
     public partial DocumentItem? SelectedItem { get; set; }
+
+    /// <summary>The background, picked in the list of layers. Never at the same time as an item.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(OrientCommand))]
+    public partial bool IsBackgroundSelected { get; set; }
 
     public bool HasSelection => SelectedItem is not null;
 
@@ -432,19 +441,72 @@ public sealed partial class EditorViewModel : ObservableObject, IDisposable
     public void SetProgress(string itemId, int percent) => Edit(() => _editor.SetProgress(itemId, percent));
 
     public void Select(string? itemId) =>
-        SelectedItem = itemId is null ? null : Document.Items.FirstOrDefault(i => i.Id == itemId);
+        SetSelection(itemId is null ? null : Document.Items.FirstOrDefault(i => i.Id == itemId), background: false);
+
+    public void SelectBackground() => SetSelection(null, background: true);
+
+    /// <summary>Changes both at once, so the list never shows a selection in between.</summary>
+    private void SetSelection(DocumentItem? item, bool background)
+    {
+        _selecting = true;
+        try
+        {
+            IsBackgroundSelected = background;
+            SelectedItem = item;
+        }
+        finally
+        {
+            _selecting = false;
+        }
+
+        SyncSelectedRow();
+    }
 
     partial void OnSelectedItemChanged(DocumentItem? value)
     {
-        SelectedRow = value is null ? null : Items.FirstOrDefault(r => r.Id == value.Id);
+        if (value is not null && !_selecting)
+        {
+            IsBackgroundSelected = false;
+        }
+
+        if (!_selecting)
+        {
+            SyncSelectedRow();
+        }
+
         SyncInspector();
         SelectionChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    partial void OnIsBackgroundSelectedChanged(bool value)
+    {
+        if (!_selecting)
+        {
+            SyncSelectedRow();
+        }
+    }
+
+    private void SyncSelectedRow() =>
+        SelectedRow = IsBackgroundSelected ? Items.FirstOrDefault(r => r.Id == BackgroundRowId)
+            : SelectedItem is { } item ? Items.FirstOrDefault(r => r.Id == item.Id)
+            : null;
+
     partial void OnSelectedRowChanged(ItemRow? value)
     {
         // Rebuilding the list clears its selection for a moment, which must not deselect the item.
-        if (!_refreshingItems && value?.Id != SelectedItem?.Id)
+        if (_refreshingItems || _selecting)
+        {
+            return;
+        }
+
+        if (value?.Id == BackgroundRowId)
+        {
+            if (!IsBackgroundSelected)
+            {
+                SelectBackground();
+            }
+        }
+        else if (value?.Id != SelectedItem?.Id || IsBackgroundSelected)
         {
             Select(value?.Id);
         }
@@ -470,7 +532,10 @@ public sealed partial class EditorViewModel : ObservableObject, IDisposable
                 }));
             }
 
-            SelectedRow = Items.FirstOrDefault(r => r.Id == SelectedItem?.Id);
+            // At the bottom, as it is drawn beneath everything.
+            Items.Add(new ItemRow(BackgroundRowId, $"Fundo: {Document.Background.Source.OriginalName}"));
+
+            SyncSelectedRow();
         }
         finally
         {
@@ -809,9 +874,45 @@ public sealed partial class EditorViewModel : ObservableObject, IDisposable
         Edit(() => _editor.SetBackground(file, BackgroundFit));
     }
 
-    [RelayCommand]
-    private void Orient(OrientationStep step) =>
-        Edit(() => _editor.SetBackgroundOrientation(Document.Background.Orientation.Apply(step)));
+    private bool CanOrient(OrientationStep step) => IsBackgroundSelected || SelectedItem is ImageItem;
+
+    /// <summary>Turns or mirrors what is selected: the background, or an image.</summary>
+    [RelayCommand(CanExecute = nameof(CanOrient))]
+    private void Orient(OrientationStep step)
+    {
+        if (IsBackgroundSelected)
+        {
+            Edit(() => _editor.SetBackgroundOrientation(Document.Background.Orientation.Apply(step)));
+            return;
+        }
+
+        if (SelectedItem is not ImageItem image)
+        {
+            return;
+        }
+
+        Edit(() =>
+        {
+            switch (step)
+            {
+                case OrientationStep.RotateLeft:
+                    _editor.RotateItem(image.Id, -90);
+                    break;
+                case OrientationStep.RotateRight:
+                    _editor.RotateItem(image.Id, 90);
+                    break;
+                case OrientationStep.Rotate180:
+                    _editor.RotateItem(image.Id, 180);
+                    break;
+                case OrientationStep.MirrorHorizontal:
+                    _editor.MirrorItem(image.Id, vertically: false);
+                    break;
+                case OrientationStep.MirrorVertical:
+                    _editor.MirrorItem(image.Id, vertically: true);
+                    break;
+            }
+        });
+    }
 
     [RelayCommand(CanExecute = nameof(HasSelection))]
     private void RemoveSelected()
@@ -841,15 +942,6 @@ public sealed partial class EditorViewModel : ObservableObject, IDisposable
         if (SelectedItem is { } item)
         {
             Edit(() => _editor.Reorder(item.Id, -1));
-        }
-    }
-
-    [RelayCommand(CanExecute = nameof(CanUseRealSize))]
-    private void Mirror()
-    {
-        if (SelectedItem is ImageItem image)
-        {
-            Edit(() => _editor.ToggleMirror(image.Id));
         }
     }
 

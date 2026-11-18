@@ -195,11 +195,32 @@ public sealed class ProjectEditor(ProjectFolder project, Func<StyledItem, double
     }
 
     /// <summary>Flips an image left to right, or back.</summary>
-    public void ToggleMirror(string itemId)
+    public void ToggleMirror(string itemId) => MirrorItem(itemId, vertically: false);
+
+    /// <summary>
+    /// Flips an image as the user sees it, around its center: left to right, or top to bottom. The image mirrors
+    /// itself before its rotation, so a turned image also turns the other way to end up mirrored on screen.
+    /// </summary>
+    public void MirrorItem(string itemId, bool vertically)
     {
         var item = Find<ImageItem>(itemId) ?? throw MissingItem(itemId);
-        var label = item.Mirrored ? $"Desfez o espelho {Of(item)}" : $"Espelhou {Describe(item)}";
-        Replace(item with { Mirrored = !item.Mirrored }, label);
+        var undoing = vertically ? item.MirroredVertically : item.Mirrored;
+        var label = undoing ? $"Desfez o espelho {Of(item)}"
+            : vertically ? $"Espelhou {Describe(item)} na vertical"
+            : $"Espelhou {Describe(item)}";
+        var flipped = vertically ? item with { MirroredVertically = !item.MirroredVertically } : item with { Mirrored = !item.Mirrored };
+        Replace(flipped with { Rotation = NormalizeAngle(-item.Rotation) }, label);
+    }
+
+    /// <summary>Turns an item around its center by the given degrees, clockwise.</summary>
+    public void RotateItem(string itemId, double degrees)
+    {
+        var item = Required(itemId);
+        var rotation = NormalizeAngle(item.Rotation + degrees);
+        if (rotation != item.Rotation)
+        {
+            Replace(item with { Rotation = rotation }, $"Girou {Describe(item)}");
+        }
     }
 
     /// <summary>Moves an item up (positive) or down (negative) in the drawing order.</summary>
