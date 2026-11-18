@@ -17,7 +17,14 @@ public sealed record WallpaperDocument(BackgroundSpec Background, IReadOnlyList<
 /// <summary>A file in the project's <c>assets</c> folder, and the name it had when it was imported.</summary>
 public sealed record AssetRef(string Asset, string OriginalName);
 
-public sealed record BackgroundSpec(AssetRef Source, FitMode Fit);
+/// <summary>The background image, turned and then fitted to the canvas.</summary>
+/// <param name="Source">The image.</param>
+/// <param name="Fit">How it adapts to the canvas.</param>
+/// <param name="Orientation">Rotation and mirrors. Left out of the file when there are none, as in older projects.</param>
+public sealed record BackgroundSpec(
+    AssetRef Source,
+    FitMode Fit,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)] ImageOrientation Orientation = default);
 
 /// <summary>Position and size in canvas pixels, before rotation.</summary>
 public readonly record struct ItemRect(double X, double Y, double Width, double Height);

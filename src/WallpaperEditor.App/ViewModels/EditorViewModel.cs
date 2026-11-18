@@ -199,6 +199,10 @@ public sealed partial class EditorViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial string? BackgroundName { get; set; }
 
+    /// <summary>How the background is turned, or null when it is as imported.</summary>
+    [ObservableProperty]
+    public partial string? BackgroundOrientationNote { get; set; }
+
     /// <summary>The selected item. Drags report back through <see cref="CommitPlacement"/>.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsImageSelected))]
@@ -805,6 +809,10 @@ public sealed partial class EditorViewModel : ObservableObject, IDisposable
         Edit(() => _editor.SetBackground(file, BackgroundFit));
     }
 
+    [RelayCommand]
+    private void Orient(OrientationStep step) =>
+        Edit(() => _editor.SetBackgroundOrientation(Document.Background.Orientation.Apply(step)));
+
     [RelayCommand(CanExecute = nameof(HasSelection))]
     private void RemoveSelected()
     {
@@ -1137,6 +1145,7 @@ public sealed partial class EditorViewModel : ObservableObject, IDisposable
         {
             BackgroundFit = Document.Background.Fit;
             BackgroundName = Document.Background.Source.OriginalName;
+            BackgroundOrientationNote = OrientationSteps.Describe(Document.Background.Orientation);
         }
         finally
         {

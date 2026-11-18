@@ -106,6 +106,31 @@ public sealed class ProjectTests : IDisposable
     }
 
     [Fact]
+    public void Turning_the_background_is_a_revision_that_survives_reopening()
+    {
+        var editor = NewEditor();
+        editor.SetBackgroundOrientation(new ImageOrientation(90, FlipHorizontal: true));
+        editor.SetBackgroundOrientation(new ImageOrientation(90, FlipHorizontal: true));
+
+        editor.Project.Dispose();
+        var reopened = Reopen();
+
+        Assert.Equal(2, reopened.Project.Head);
+        Assert.Equal(new ImageOrientation(90, FlipHorizontal: true), reopened.Document.Background.Orientation);
+        Assert.Equal(ChangeKinds.BackgroundChanged, reopened.Project.ReadHistory()[0].Change!.Kind);
+    }
+
+    [Fact]
+    public void A_background_that_is_not_turned_writes_no_orientation()
+    {
+        NewEditor();
+
+        var revision = File.ReadAllText(Path.Combine(_path, "revisions", "000001.json"));
+
+        Assert.DoesNotContain("orientation", revision, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void Dropping_an_item_where_it_was_creates_no_revision()
     {
         var editor = NewEditor();

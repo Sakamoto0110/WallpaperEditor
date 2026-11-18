@@ -116,8 +116,10 @@ public sealed class WpfWallpaperRenderer : IWallpaperRenderer
     private static BitmapSource Render(StaticImageRequest request)
     {
         var source = LoadedImage.Open(request.SourcePath);
-        var placement = FitCalculator.Compute(source.DisplaySize, request.Target, request.Fit);
-        var image = source.Decode(placement);
+        var orientation = request.Orientation;
+        var placement = FitCalculator.Compute(orientation.Apply(source.DisplaySize), request.Target, request.Fit);
+        var (width, height) = OrientedDrawing.DecodeSize(placement, orientation);
+        var image = source.Decode(new Placement(0, 0, width, height));
 
         var visual = new DrawingVisual();
         RenderOptions.SetBitmapScalingMode(visual, BitmapScalingMode.HighQuality);
@@ -129,7 +131,7 @@ public sealed class WpfWallpaperRenderer : IWallpaperRenderer
             // Bars and transparent areas end up black. The output is always opaque.
             context.DrawRectangle(Brushes.Black, null, target);
             context.PushClip(new RectangleGeometry(target));
-            context.DrawImage(image, new Rect(placement.X, placement.Y, placement.Width, placement.Height));
+            OrientedDrawing.Draw(context, image, placement, orientation);
             context.Pop();
         }
 

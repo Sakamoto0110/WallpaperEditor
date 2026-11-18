@@ -1,0 +1,37 @@
+<UserControl x:Class="WallpaperEditor.App.Views.OrientationButtons"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:WallpaperEditor.App.ViewModels">
+    <!-- Bound to the DataContext's OrientCommand, which takes an OrientationStep. -->
+    <UniformGrid Columns="5">
+        <UniformGrid.Resources>
+            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                <Setter Property="HorizontalAlignment" Value="Stretch" />
+                <Setter Property="Margin" Value="0,0,4,0" />
+                <Setter Property="Padding" Value="0,5" />
+                <Setter Property="Command" Value="{Binding OrientCommand}" />
+            </Style>
+        </UniformGrid.Resources>
+        <Button AutomationProperties.Name="Girar 90 graus no sentido anti-horário"
+                CommandParameter="{x:Static vm:OrientationStep.RotateLeft}"
+                Content="↺ 90°"
+                ToolTip="Girar 90° no sentido anti-horário" />
+        <Button AutomationProperties.Name="Girar 90 graus no sentido horário"
+                CommandParameter="{x:Static vm:OrientationStep.RotateRight}"
+                Content="↻ 90°"
+                ToolTip="Girar 90° no sentido horário" />
+        <Button AutomationProperties.Name="Girar 180 graus"
+                CommandParameter="{x:Static vm:OrientationStep.Rotate180}"
+                Content="180°"
+                ToolTip="Girar 180°" />
+        <Button AutomationProperties.Name="Espelhar na horizontal"
+                CommandParameter="{x:Static vm:OrientationStep.MirrorHorizontal}"
+                Content="⇆"
+                ToolTip="Espelhar na horizontal (troca esquerda e direita)" />
+        <Button Margin="0"
+                AutomationProperties.Name="Espelhar na vertical"
+                CommandParameter="{x:Static vm:OrientationStep.MirrorVertical}"
+                Content="⇅"
+                ToolTip="Espelhar na vertical (troca cima e baixo)" />
+    </UniformGrid>
+</UserControl>

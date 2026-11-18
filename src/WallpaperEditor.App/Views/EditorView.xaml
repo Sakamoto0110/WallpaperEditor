@@ -116,6 +116,22 @@
                                   SelectedValue="{Binding BackgroundFit}"
                                   SelectedValuePath="Mode" />
                     </UniformGrid>
+                    <views:OrientationButtons Margin="0,8,0,0" />
+                    <TextBlock Margin="0,4,0,0"
+                               Opacity="0.75"
+                               FontSize="12"
+                               Text="{Binding BackgroundOrientationNote}"
+                               TextWrapping="Wrap">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Style.Triggers>
+                                    <Trigger Property="Text" Value="{x:Null}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
 
                     <TextBlock Margin="0,16,0,6"
                                Style="{StaticResource Heading}"

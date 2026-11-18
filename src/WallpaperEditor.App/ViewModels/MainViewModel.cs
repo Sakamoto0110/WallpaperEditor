@@ -152,6 +152,7 @@ public sealed partial class MainViewModel : ObservableObject
         {
             monitor.SourcePath = source;
             monitor.Fit = assignment.Fit;
+            monitor.Orientation = assignment.Orientation;
         }
 
         monitor.PropertyChanged += OnMonitorChanged;
@@ -169,7 +170,9 @@ public sealed partial class MainViewModel : ObservableObject
         {
             case nameof(MonitorViewModel.SourcePath):
             case nameof(MonitorViewModel.Fit):
+            case nameof(MonitorViewModel.Orientation):
                 ApplyCommand.NotifyCanExecuteChanged();
+                OrientCommand.NotifyCanExecuteChanged();
                 _ = UpdatePreviewAsync();
                 break;
 
@@ -180,7 +183,23 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
-    partial void OnSelectedMonitorChanged(MonitorViewModel? value) => _ = UpdatePreviewAsync();
+    partial void OnSelectedMonitorChanged(MonitorViewModel? value)
+    {
+        OrientCommand.NotifyCanExecuteChanged();
+        _ = UpdatePreviewAsync();
+    }
+
+    private bool CanOrient(OrientationStep step) => SelectedMonitor?.SourcePath is not null;
+
+    /// <summary>Turns the chosen image. Only the preview changes until it is applied.</summary>
+    [RelayCommand(CanExecute = nameof(CanOrient))]
+    private void Orient(OrientationStep step)
+    {
+        if (SelectedMonitor is { } monitor)
+        {
+            monitor.Orientation = monitor.Orientation.Apply(step);
+        }
+    }
 
     private bool HasSelection => SelectedMonitor is not null;
 
@@ -189,6 +208,7 @@ public sealed partial class MainViewModel : ObservableObject
     {
         if (SelectedMonitor is { } monitor && _dialogs.ChooseImage($"Imagem para {monitor.Info.Name}") is { } file)
         {
+            monitor.Orientation = ImageOrientation.None;
             monitor.SourcePath = file;
             Status = null;
         }
@@ -315,7 +335,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     private async Task PublishAsync(MonitorViewModel monitor, string source)
     {
-        await _publisher.PublishAsync(monitor.Info.Id, source, monitor.Fit);
+        await _publisher.PublishAsync(monitor.Info.Id, source, monitor.Fit, monitor.Orientation);
         UpdateFromWindows(monitor);
         _ = LoadThumbnailAsync(monitor);
         Status = $"Aplicado em {monitor.Info.Name}.";
@@ -351,6 +371,7 @@ public sealed partial class MainViewModel : ObservableObject
             var fromCopy = _publisher.RestoreOriginal(monitor.Info.Id);
             monitor.SourcePath = null;
             monitor.Fit = FitMode.Fill;
+            monitor.Orientation = ImageOrientation.None;
             UpdateFromWindows(monitor);
             _ = LoadThumbnailAsync(monitor);
             Status = fromCopy
@@ -485,7 +506,7 @@ public sealed partial class MainViewModel : ObservableObject
         {
             // Twice the displayed size keeps the preview sharp on a high-DPI display.
             var target = new PixelSize((int)(PreviewWidth * 2), (int)(PreviewHeight * 2));
-            var bitmap = await _renderer.RenderPreviewAsync(new StaticImageRequest(source, monitor.Fit, target), cancellation);
+            var bitmap = await _renderer.RenderPreviewAsync(new StaticImageRequest(source, monitor.Fit, target, monitor.Orientation), cancellation);
             if (!cancellation.IsCancellationRequested)
             {
                 Preview = bitmap;

@@ -38,6 +38,9 @@ public sealed record MonitorAssignment
 
     public FitMode Fit { get; init; }
 
+    /// <summary>Rotation and mirrors of that image.</summary>
+    public ImageOrientation Orientation { get; init; }
+
     /// <summary>The project folder, for a dynamic wallpaper. Null for a static one.</summary>
     public string? ProjectPath { get; init; }
 

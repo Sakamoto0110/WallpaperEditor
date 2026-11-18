@@ -202,10 +202,49 @@ public sealed class WpfWallpaperRendererTests : IDisposable
         AssertColor(Blue, Pixel(preview, 35, 20));
     }
 
-    private async Task<BitmapSource> Render(string source, FitMode mode, PixelSize target)
+    [Theory]
+    [InlineData(90, false, false, true)]
+    [InlineData(270, false, false, false)]
+    [InlineData(90, false, true, false)]
+    [InlineData(270, true, false, false)]
+    public async Task A_quarter_turn_puts_the_left_half_on_top_or_below(int degrees, bool flipHorizontal, bool flipVertical, bool redOnTop)
+    {
+        // Left half red, right half blue. Turned clockwise, the left side ends up on top.
+        var orientation = new ImageOrientation(degrees, flipHorizontal, flipVertical);
+        var output = await Render(WritePng(SplitHorizontally(200, 100)), FitMode.Fill, new PixelSize(100, 200), orientation);
+
+        AssertColor(redOnTop ? Red : Blue, Pixel(output, 50, 20));
+        AssertColor(redOnTop ? Blue : Red, Pixel(output, 50, 180));
+    }
+
+    [Fact]
+    public async Task A_turned_image_fits_by_its_turned_size()
+    {
+        // A wide image turned upright fits a tall target with no bars.
+        var output = await Render(WritePng(SplitHorizontally(200, 100)), FitMode.Fit, new PixelSize(100, 200), new ImageOrientation(90));
+
+        AssertNotBlack(Pixel(output, 5, 5));
+        AssertNotBlack(Pixel(output, 95, 195));
+    }
+
+    [Theory]
+    [InlineData(false, 0)]
+    [InlineData(true, 0)]
+    [InlineData(false, 180)]
+    public async Task Mirroring_or_a_half_turn_swaps_left_and_right(bool flipHorizontal, int degrees)
+    {
+        var orientation = new ImageOrientation(degrees, flipHorizontal);
+        var output = await Render(WritePng(SplitHorizontally(200, 100)), FitMode.Fill, new PixelSize(200, 100), orientation);
+
+        var swapped = flipHorizontal || degrees == 180;
+        AssertColor(swapped ? Blue : Red, Pixel(output, 20, 50));
+        AssertColor(swapped ? Red : Blue, Pixel(output, 180, 50));
+    }
+
+    private async Task<BitmapSource> Render(string source, FitMode mode, PixelSize target, ImageOrientation orientation = default)
     {
         var path = Path.Combine(_folder, $"{Guid.NewGuid():N}.png");
-        await _renderer.RenderToFileAsync(new StaticImageRequest(source, mode, target), path);
+        await _renderer.RenderToFileAsync(new StaticImageRequest(source, mode, target, orientation), path);
 
         using var file = File.OpenRead(path);
         var frame = BitmapDecoder.Create(file, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad).Frames[0];

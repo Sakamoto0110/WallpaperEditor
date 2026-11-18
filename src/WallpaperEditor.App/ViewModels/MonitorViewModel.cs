@@ -38,6 +38,12 @@ public sealed partial class MonitorViewModel(MonitorInfo info) : ObservableObjec
     public partial FitMode Fit { get; set; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(OrientationNote))]
+    public partial ImageOrientation Orientation { get; set; }
+
+    public string? OrientationNote => OrientationSteps.Describe(Orientation);
+
+    [ObservableProperty]
     public partial bool CanRestore { get; set; }
 
     /// <summary>The dynamic wallpaper this monitor is showing, if any.</summary>

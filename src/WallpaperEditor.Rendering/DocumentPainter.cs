@@ -46,11 +46,13 @@ public static class DocumentPainter
             return;
         }
 
-        var placement = FitCalculator.Compute(size, canvas, background.Fit);
-        if (images.Get(background.Source, placement.Width, placement.Height) is { } bitmap)
+        var orientation = background.Orientation;
+        var placement = FitCalculator.Compute(orientation.Apply(size), canvas, background.Fit);
+        var (width, height) = OrientedDrawing.DecodeSize(placement, orientation);
+        if (images.Get(background.Source, width, height) is { } bitmap)
         {
             context.PushClip(new RectangleGeometry(area));
-            context.DrawImage(bitmap, new Rect(placement.X, placement.Y, placement.Width, placement.Height));
+            OrientedDrawing.Draw(context, bitmap, placement, orientation);
             context.Pop();
         }
     }

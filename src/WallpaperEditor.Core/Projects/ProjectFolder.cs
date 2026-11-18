@@ -247,7 +247,8 @@ public sealed class ProjectFolder : IDisposable
             new BackgroundLayer(
                 $"{AssetsFolder}/{revision.Document.Background.Source.Asset}",
                 revision.Document.Background.Source.OriginalName,
-                revision.Document.Background.Fit),
+                revision.Document.Background.Fit,
+                revision.Document.Background.Orientation.IsNone ? null : revision.Document.Background.Orientation),
             revision.Document.Items.Select((item, index) => new CompositionLayer(index + 1, item)).ToList());
 
         try
@@ -351,7 +352,7 @@ public sealed class ProjectFolder : IDisposable
 
     private sealed record CanvasInfo(int Width, int Height);
 
-    private sealed record BackgroundLayer(string File, string OriginalName, FitMode Fit);
+    private sealed record BackgroundLayer(string File, string OriginalName, FitMode Fit, ImageOrientation? Orientation);
 
     /// <summary>Numbered from the bottom: the highest order is drawn on top.</summary>
     private sealed record CompositionLayer(int Order, DocumentItem Item);

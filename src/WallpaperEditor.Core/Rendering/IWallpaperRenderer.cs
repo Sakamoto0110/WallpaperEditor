@@ -4,8 +4,8 @@ using WallpaperEditor.Core.Wallpapers;
 
 namespace WallpaperEditor.Core.Rendering;
 
-/// <summary>An image adapted to an exact pixel size.</summary>
-public sealed record StaticImageRequest(string SourcePath, FitMode Fit, PixelSize Target);
+/// <summary>An image turned, then adapted to an exact pixel size.</summary>
+public sealed record StaticImageRequest(string SourcePath, FitMode Fit, PixelSize Target, ImageOrientation Orientation = default);
 
 /// <summary>A document drawn on its canvas, and the canvas adapted to an exact pixel size.</summary>
 /// <param name="Document">What to draw.</param>

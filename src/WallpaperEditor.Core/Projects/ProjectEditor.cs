@@ -233,6 +233,22 @@ public sealed class ProjectEditor(ProjectFolder project, Func<StyledItem, double
         }
     }
 
+    /// <summary>Rotates or mirrors the background. The description names what changed, for the history.</summary>
+    public void SetBackgroundOrientation(ImageOrientation orientation)
+    {
+        var before = Document.Background.Orientation;
+        if (orientation == before)
+        {
+            return;
+        }
+
+        var description = orientation.IsNone ? "Desfez a rotação e o espelhamento do fundo"
+            : orientation.FlipHorizontal != before.FlipHorizontal && orientation.Degrees == before.Degrees && orientation.FlipVertical == before.FlipVertical ? "Espelhou o fundo na horizontal"
+            : orientation.FlipVertical != before.FlipVertical && orientation.Degrees == before.Degrees && orientation.FlipHorizontal == before.FlipHorizontal ? "Espelhou o fundo na vertical"
+            : "Girou o fundo";
+        Apply(Document with { Background = Document.Background with { Orientation = orientation } }, new RevisionChange(ChangeKinds.BackgroundChanged, description));
+    }
+
     public void SetChecklistTitle(string itemId, string title)
     {
         var item = Checklist(itemId);

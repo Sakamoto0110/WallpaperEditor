@@ -40,6 +40,14 @@ public sealed class WallpaperPublisher(
         MonitorId monitorId,
         string sourcePath,
         FitMode fit,
+        CancellationToken cancellationToken = default) =>
+        PublishAsync(monitorId, sourcePath, fit, ImageOrientation.None, cancellationToken);
+
+    public Task<MonitorAssignment> PublishAsync(
+        MonitorId monitorId,
+        string sourcePath,
+        FitMode fit,
+        ImageOrientation orientation,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(monitorId);
@@ -47,11 +55,12 @@ public sealed class WallpaperPublisher(
 
         return PublishCoreAsync(
             monitorId,
-            (size, output, cancel) => renderer.RenderToFileAsync(new StaticImageRequest(sourcePath, fit, size), output, cancel),
+            (size, output, cancel) => renderer.RenderToFileAsync(new StaticImageRequest(sourcePath, fit, size, orientation), output, cancel),
             assignment => assignment with
             {
                 SourcePath = Path.GetFullPath(sourcePath),
                 Fit = fit,
+                Orientation = orientation,
                 ProjectPath = null,
                 ProjectRevision = null,
             },
@@ -90,6 +99,7 @@ public sealed class WallpaperPublisher(
             {
                 SourcePath = null,
                 Fit = FitMode.Fill,
+                Orientation = ImageOrientation.None,
                 ProjectPath = Path.GetFullPath(projectPath),
                 ProjectRevision = revision,
             },
