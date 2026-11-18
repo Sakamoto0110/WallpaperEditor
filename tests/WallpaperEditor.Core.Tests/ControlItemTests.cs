@@ -214,6 +214,25 @@ public sealed class ControlItemTests : IDisposable
         Assert.Equal(330, mirrored.Rotation);
     }
 
+    [Fact]
+    public void A_resize_past_the_other_side_mirrors_the_image_in_the_same_revision()
+    {
+        var picture = Path.Combine(_root, "gato.png");
+        File.WriteAllText(picture, "image");
+        var editor = NewEditor();
+        var image = editor.AddImage(picture, SomeRect);
+        var head = editor.Project.Head;
+
+        editor.Place(image.Id, new ItemRect(0, 0, 50, 80), 0, flipX: true, flipY: false);
+        var placed = editor.Find<ImageItem>(image.Id)!;
+
+        Assert.Equal(head + 1, editor.Project.Head);
+        Assert.True(placed.Mirrored);
+        Assert.False(placed.MirroredVertically);
+        Assert.Equal(new ItemRect(0, 0, 50, 80), placed.Rect);
+        Assert.Equal("Redimensionou e espelhou a imagem gato.png", editor.Project.ReadRevision(editor.Project.Head).Change.Label);
+    }
+
     [Theory]
     [InlineData(90, 90)]
     [InlineData(-90, 270)]

@@ -24,6 +24,9 @@ public sealed class EditorSurface : Grid
     private const double HandleRadius = 6;
     private const double EdgeHandleSize = 10;
     private const double HandleGrabRadius = 11;
+
+    /// <summary>In screen pixels, either side of an item's outline: close enough to grab the side.</summary>
+    private const double EdgeGrabDistance = 5;
     private const double RotationHandleDistance = 28;
     private const double MinimumItemSize = 16;
     private const double Margin_ = 12;
@@ -55,6 +58,10 @@ public sealed class EditorSurface : Grid
     private Point _pressedAt;
     private Hotspot? _pendingClick;
     private bool _nudging;
+
+    /// <summary>Whether the resize in progress went past the opposite side, mirroring the image.</summary>
+    private bool _dragFlipX;
+    private bool _dragFlipY;
 
     public EditorSurface()
     {
@@ -146,14 +153,11 @@ public sealed class EditorSurface : Grid
             }
 
             // After the corners, which win on a small item where both are close together.
-            foreach (var edge in Enum.GetValues<ItemEdge>())
+            if (EdgeAt(selected, display, canvas) is { } edge)
             {
-                if (Near(display, ToDisplay(ItemGeometry.EdgePoint(selected.LiveRect, selected.LiveRotation, edge))))
-                {
-                    _dragEdge = edge;
-                    StartDrag(DragMode.ResizeEdge, selected, canvas);
-                    return;
-                }
+                _dragEdge = edge;
+                StartDrag(DragMode.ResizeEdge, selected, canvas);
+                return;
             }
         }
 
@@ -222,12 +226,12 @@ public sealed class EditorSurface : Grid
             case DragMode.Resize:
                 // Images keep their shape unless Shift is held; a checklist has no shape to keep.
                 var keepAspect = view.Item is ImageItem && !Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
-                view.LiveRect = ItemGeometry.ResizeFromCorner(_dragStartRect, view.LiveRotation, _dragCorner, canvas, keepAspect, MinimumItemSize);
+                ShowResize(view, ItemGeometry.ResizeFromCorner(_dragStartRect, view.LiveRotation, _dragCorner, canvas, keepAspect, MinimumItemSize, allowFlip: view.Item is ImageItem));
                 break;
 
             case DragMode.ResizeEdge:
                 // A side always changes one dimension only, an image included: that is what it is for.
-                view.LiveRect = ItemGeometry.ResizeFromEdge(_dragStartRect, view.LiveRotation, _dragEdge, canvas, MinimumItemSize);
+                ShowResize(view, ItemGeometry.ResizeFromEdge(_dragStartRect, view.LiveRotation, _dragEdge, canvas, MinimumItemSize, allowFlip: view.Item is ImageItem));
                 break;
 
             case DragMode.Rotate:
@@ -331,8 +335,33 @@ public sealed class EditorSurface : Grid
         Visibility = Visibility.Collapsed,
     };
 
+    /// <summary>
+    /// Shows the new size, and an image that has been dragged past its opposite side as the mirror it will become.
+    /// </summary>
+    private void ShowResize(ItemView view, ResizeResult result)
+    {
+        view.LiveRect = result.Rect;
+        if (result.FlippedX == _dragFlipX && result.FlippedY == _dragFlipY)
+        {
+            return;
+        }
+
+        _dragFlipX = result.FlippedX;
+        _dragFlipY = result.FlippedY;
+        if (view.Item is ImageItem image)
+        {
+            view.Shown = image with
+            {
+                Mirrored = image.Mirrored != _dragFlipX,
+                MirroredVertically = image.MirroredVertically != _dragFlipY,
+            };
+        }
+    }
+
     private void StartDrag(DragMode mode, ItemView view, CanvasPoint canvas)
     {
+        _dragFlipX = false;
+        _dragFlipY = false;
         _drag = mode;
         _dragStart = canvas;
         _dragStartRect = view.LiveRect;
@@ -383,7 +412,7 @@ public sealed class EditorSurface : Grid
                 break;
 
             default:
-                _editor?.CommitPlacement(view.Item.Id, view.LiveRect, view.LiveRotation);
+                _editor?.CommitPlacement(view.Item.Id, view.LiveRect, view.LiveRotation, _dragFlipX, _dragFlipY);
                 break;
         }
     }
@@ -515,23 +544,20 @@ public sealed class EditorSurface : Grid
         {
             if (Near(display, ToDisplay(ItemGeometry.RotationHandle(view.LiveRect, view.LiveRotation, RotationHandleDistance / _scale))))
             {
-                return Cursors.Hand;
+                return RotationCursor.Value;
             }
 
             foreach (var corner in Enum.GetValues<ItemCorner>())
             {
                 if (Near(display, ToDisplay(ItemGeometry.CornerPoint(view.LiveRect, view.LiveRotation, corner))))
                 {
-                    return Cursors.SizeAll;
+                    return ResizeCursor(ItemGeometry.OutwardAngle(corner, view.LiveRotation));
                 }
             }
 
-            foreach (var edge in Enum.GetValues<ItemEdge>())
+            if (EdgeAt(view, display, ToCanvas(display)) is { } edge)
             {
-                if (Near(display, ToDisplay(ItemGeometry.EdgePoint(view.LiveRect, view.LiveRotation, edge))))
-                {
-                    return EdgeCursor(edge, view.LiveRotation);
-                }
+                return ResizeCursor(ItemGeometry.OutwardAngle(edge, view.LiveRotation));
             }
         }
 
@@ -544,17 +570,34 @@ public sealed class EditorSurface : Grid
 
     private static bool Near(Point a, Point b) => (a - b).Length <= HandleGrabRadius;
 
-    /// <summary>The double arrow closest to the side's direction on screen, once the item is turned.</summary>
-    private static Cursor EdgeCursor(ItemEdge edge, double rotation)
+    /// <summary>The side under the pointer: its middle handle, or anywhere along its line.</summary>
+    private ItemEdge? EdgeAt(ItemView view, Point display, CanvasPoint canvas)
     {
-        var horizontal = edge is ItemEdge.Left or ItemEdge.Right;
-        var turned = ((rotation % 180) + 180) % 180;
-        if (turned is > 45 and < 135)
+        foreach (var edge in Enum.GetValues<ItemEdge>())
         {
-            horizontal = !horizontal;
+            if (Near(display, ToDisplay(ItemGeometry.EdgePoint(view.LiveRect, view.LiveRotation, edge))))
+            {
+                return edge;
+            }
         }
 
-        return horizontal ? Cursors.SizeWE : Cursors.SizeNS;
+        return ItemGeometry.EdgeAt(view.LiveRect, view.LiveRotation, canvas, EdgeGrabDistance / _scale);
+    }
+
+    /// <summary>
+    /// The double arrow closest to the direction a handle moves on screen, once the item is turned: diagonal for a
+    /// corner of an upright item, horizontal or vertical for a side. The four-way arrow is only for moving.
+    /// </summary>
+    private static Cursor ResizeCursor(double degrees)
+    {
+        var angle = ((degrees % 180) + 180) % 180;
+        return angle switch
+        {
+            < 22.5 or >= 157.5 => Cursors.SizeWE,
+            < 67.5 => Cursors.SizeNWSE,
+            < 112.5 => Cursors.SizeNS,
+            _ => Cursors.SizeNESW,
+        };
     }
 
     private CanvasPoint ToCanvas(Point display) =>

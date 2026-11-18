@@ -174,11 +174,26 @@ public sealed class ProjectEditor(ProjectFolder project, Func<StyledItem, double
     }
 
     /// <summary>Called when a drag ends, so one drag is one revision however far the item travelled.</summary>
-    public void Place(string itemId, ItemRect rect, double rotation)
+    public void Place(string itemId, ItemRect rect, double rotation) => Place(itemId, rect, rotation, flipX: false, flipY: false);
+
+    /// <summary>
+    /// As the other overload, for a resize dragged past the opposite side: an image flips in its own terms, in the
+    /// same revision as the new size. Other items have nothing to flip and ignore it.
+    /// </summary>
+    public void Place(string itemId, ItemRect rect, double rotation, bool flipX, bool flipY)
     {
         var item = Required(itemId);
         var updated = item with { Rect = Sanitize(rect), Rotation = NormalizeAngle(rotation) };
-        if (updated.Rect != item.Rect || updated.Rotation != item.Rotation)
+        if (updated is ImageItem image && (flipX || flipY))
+        {
+            updated = image with
+            {
+                Mirrored = image.Mirrored != flipX,
+                MirroredVertically = image.MirroredVertically != flipY,
+            };
+            Replace(updated, $"Redimensionou e espelhou {Describe(item)}");
+        }
+        else if (updated.Rect != item.Rect || updated.Rotation != item.Rotation)
         {
             Replace(updated, $"Moveu ou redimensionou {Describe(item)}");
         }

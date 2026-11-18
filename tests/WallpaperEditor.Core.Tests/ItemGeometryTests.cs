@@ -159,6 +159,65 @@ public class ItemGeometryTests
     }
 
     [Fact]
+    public void A_side_dragged_past_the_other_flips_and_keeps_growing_beyond_it()
+    {
+        // The right side of the item spans x 100-300; dragged to x 40, it passes the left side by 60.
+        var result = ItemGeometry.ResizeFromEdge(Rect, 0, ItemEdge.Right, new CanvasPoint(40, 0), 16, allowFlip: true);
+
+        Assert.True(result.FlippedX);
+        Assert.False(result.FlippedY);
+        Assert.Equal(new ItemRect(40, 100, 60, 100), result.Rect);
+    }
+
+    [Fact]
+    public void A_side_that_stays_on_its_own_side_does_not_flip()
+    {
+        var result = ItemGeometry.ResizeFromEdge(Rect, 0, ItemEdge.Right, new CanvasPoint(250, 0), 16, allowFlip: true);
+
+        Assert.False(result.FlippedX);
+        Assert.Equal(new ItemRect(100, 100, 150, 100), result.Rect);
+    }
+
+    [Fact]
+    public void A_corner_dragged_past_the_opposite_corner_flips_both_ways()
+    {
+        // The bottom-right corner, dragged up and left past the top-left one at (100,100).
+        var result = ItemGeometry.ResizeFromCorner(Rect, 0, ItemCorner.BottomRight, new CanvasPoint(20, 50), keepAspect: false, 16, allowFlip: true);
+
+        Assert.True(result.FlippedX);
+        Assert.True(result.FlippedY);
+        Assert.Equal(new ItemRect(20, 50, 80, 50), result.Rect);
+    }
+
+    [Fact]
+    public void Without_flipping_a_corner_still_stops_at_the_minimum_size()
+    {
+        var result = ItemGeometry.ResizeFromCorner(Rect, 0, ItemCorner.BottomRight, new CanvasPoint(20, 50), keepAspect: false, 16, allowFlip: false);
+
+        Assert.False(result.FlippedX || result.FlippedY);
+        Assert.Equal(new ItemRect(100, 100, 16, 16), result.Rect);
+    }
+
+    [Theory]
+    [InlineData(100, 150, ItemEdge.Left)]
+    [InlineData(298, 120, ItemEdge.Right)]
+    [InlineData(250, 103, ItemEdge.Top)]
+    [InlineData(150, 201, ItemEdge.Bottom)]
+    public void A_side_can_be_grabbed_anywhere_along_its_line(double x, double y, ItemEdge expected) =>
+        Assert.Equal(expected, ItemGeometry.EdgeAt(Rect, 0, new CanvasPoint(x, y), 5));
+
+    [Fact]
+    public void The_middle_of_an_item_is_no_side() =>
+        Assert.Null(ItemGeometry.EdgeAt(Rect, 0, new CanvasPoint(200, 150), 5));
+
+    [Theory]
+    [InlineData(ItemCorner.BottomRight, 0, 45)]
+    [InlineData(ItemCorner.TopRight, 0, -45)]
+    [InlineData(ItemCorner.BottomRight, 45, 90)]
+    public void A_corner_moves_outward_diagonally_turned_with_the_item(ItemCorner corner, double rotation, double expected) =>
+        Assert.Equal(expected, ItemGeometry.OutwardAngle(corner, rotation), precision: 6);
+
+    [Fact]
     public void A_point_on_an_unrotated_item_is_measured_from_its_corner()
     {
         var local = ItemGeometry.ToLocal(Rect, 0, new CanvasPoint(130, 160));

@@ -409,8 +409,8 @@ public sealed partial class EditorViewModel : ObservableObject, IDisposable
     }
 
     /// <summary>Called when a drag on the surface ends. One drag is one revision.</summary>
-    public void CommitPlacement(string itemId, ItemRect rect, double rotation) =>
-        Edit(() => _editor.Place(itemId, rect, rotation));
+    public void CommitPlacement(string itemId, ItemRect rect, double rotation, bool flipX = false, bool flipY = false) =>
+        Edit(() => _editor.Place(itemId, rect, rotation, flipX, flipY));
 
     /// <summary>A click on a control drawn in the preview. It changes the project, never the monitor by itself.</summary>
     public void Interact(string itemId, Hotspot hotspot)
